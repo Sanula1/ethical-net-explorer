@@ -40,32 +40,30 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state
   const getMenuItems = () => {
-    // If no institute is selected, show basic navigation with organizations
+    // Base items that are always available
+    const baseItems = [
+      {
+        id: 'dashboard',
+        label: selectedInstitute ? 'Dashboard' : 'Select Institutes',
+        icon: LayoutDashboard,
+        permission: 'view-dashboard'
+      },
+      {
+        id: 'organizations',
+        label: 'Organizations',
+        icon: Building2,
+        permission: 'view-organizations'
+      }
+    ];
+
+    // If no institute is selected, return basic navigation
     if (!selectedInstitute) {
-      return [
-        {
-          id: 'dashboard',
-          label: 'Select Institutes',
-          icon: LayoutDashboard,
-          permission: 'view-dashboard'
-        },
-        {
-          id: 'organizations',
-          label: 'Organizations',
-          icon: Building2,
-          permission: 'view-organizations'
-        }
-      ];
+      return baseItems;
     }
 
     // If institute is selected, show full navigation
     return [
-      {
-        id: 'dashboard',
-        label: 'Dashboard',
-        icon: LayoutDashboard,
-        permission: 'view-dashboard'
-      },
+      ...baseItems,
       {
         id: 'users',
         label: 'Users',
@@ -380,7 +378,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Show Organizations section only when no institute is selected */}
             {/* Only show attendance and academic sections if institute is selected */}
             {selectedInstitute && (
               <>
