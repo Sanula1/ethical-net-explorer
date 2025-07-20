@@ -46,13 +46,15 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         id: 'dashboard',
         label: selectedInstitute ? 'Dashboard' : 'Select Institutes',
         icon: LayoutDashboard,
-        permission: 'view-dashboard'
+        permission: 'view-dashboard',
+        alwaysShow: false
       },
       {
         id: 'organizations',
         label: 'Organizations',
         icon: Building2,
-        permission: 'view-organizations'
+        permission: 'view-organizations',
+        alwaysShow: true // Always show organizations for all users
       }
     ];
 
@@ -68,38 +70,44 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         id: 'users',
         label: 'Users',
         icon: Users,
-        permission: 'view-users'
+        permission: 'view-users',
+        alwaysShow: false
       },
       {
         id: 'students',
         label: 'Students',
         icon: GraduationCap,
-        permission: 'view-students'
+        permission: 'view-students',
+        alwaysShow: false
       },
       {
         id: 'parents',
         label: 'Parents',
         icon: Users,
-        permission: 'view-parents'
+        permission: 'view-parents',
+        alwaysShow: false
       },
       // Remove teachers section for SystemAdmin
       ...(user?.role !== 'SystemAdmin' ? [{
         id: 'teachers',
         label: 'Teachers',
         icon: UserCheck,
-        permission: 'view-teachers'
+        permission: 'view-teachers',
+        alwaysShow: false
       }] : []),
       {
         id: 'classes',
         label: 'All Classes',
         icon: School,
-        permission: 'view-classes'
+        permission: 'view-classes',
+        alwaysShow: false
       },
       {
         id: 'subjects',
         label: 'All Subjects',
         icon: BookOpen,
-        permission: 'view-subjects'
+        permission: 'view-subjects',
+        alwaysShow: false
       },
       // Only show selection options for non-SystemAdmin users
       ...(user?.role !== 'SystemAdmin' ? [
@@ -107,20 +115,23 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           id: 'select-class',
           label: 'Select Class',
           icon: School,
-          permission: 'view-classes'
+          permission: 'view-classes',
+          alwaysShow: false
         },
         {
           id: 'select-subject',
           label: 'Select Subject',
           icon: BookOpen,
-          permission: 'view-subjects'
+          permission: 'view-subjects',
+          alwaysShow: false
         }
       ] : []),
       {
         id: 'institutes',
         label: 'Institutes',
         icon: Building2,
-        permission: 'view-institutes'
+        permission: 'view-institutes',
+        alwaysShow: false
       }
     ];
   };
@@ -130,25 +141,29 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       id: 'attendance',
       label: 'View Attendance',
       icon: ClipboardList,
-      permission: 'view-attendance'
+      permission: 'view-attendance',
+      alwaysShow: false
     },
     {
       id: 'attendance-marking',
       label: 'Mark Attendance',
       icon: UserCheck,
-      permission: 'mark-attendance'
+      permission: 'mark-attendance',
+      alwaysShow: false
     },
     {
       id: 'attendance-markers',
       label: 'Attendance Markers',
       icon: Users,
-      permission: 'manage-attendance-markers'
+      permission: 'manage-attendance-markers',
+      alwaysShow: false
     },
     {
       id: 'qr-attendance',
       label: 'QR Attendance',
       icon: QrCode,
-      permission: 'mark-attendance'
+      permission: 'mark-attendance',
+      alwaysShow: false
     }
   ];
 
@@ -157,31 +172,36 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       id: 'grading',
       label: 'Grading',
       icon: BarChart3,
-      permission: 'view-grading'
+      permission: 'view-grading',
+      alwaysShow: false
     },
     {
       id: 'live-lectures',
       label: 'Live Lectures',
       icon: Video,
-      permission: 'view-lectures'
+      permission: 'view-lectures',
+      alwaysShow: false
     },
     {
       id: 'homework',
       label: 'Homework',
       icon: Notebook,
-      permission: 'view-homework'
+      permission: 'view-homework',
+      alwaysShow: false
     },
     {
       id: 'exams',
       label: 'Exams',
       icon: FileText,
-      permission: 'view-exams'
+      permission: 'view-exams',
+      alwaysShow: false
     },
     {
       id: 'results',
       label: 'Results',
       icon: ClipboardList,
-      permission: 'view-results'
+      permission: 'view-results',
+      alwaysShow: false
     }
   ];
 
@@ -190,25 +210,29 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       id: 'profile',
       label: 'Profile',
       icon: User,
-      permission: 'view-profile'
+      permission: 'view-profile',
+      alwaysShow: false
     },
     {
       id: 'appearance',
       label: 'Appearance',
       icon: Palette,
-      permission: 'view-appearance'
+      permission: 'view-appearance',
+      alwaysShow: false
     },
     ...(selectedInstitute ? [{
       id: 'institute-details',
       label: 'Institute Details',
       icon: Building2,
-      permission: 'view-institute-details'
+      permission: 'view-institute-details',
+      alwaysShow: false
     }] : []),
     {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
-      permission: 'view-settings'
+      permission: 'view-settings',
+      alwaysShow: false
     }
   ];
 
@@ -216,7 +240,14 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
   const menuItems = getMenuItems();
 
   const filterItemsByPermission = (items: any[]) => {
-    return items.filter(item => AccessControl.hasPermission(userRole as any, item.permission));
+    return items.filter(item => {
+      // Always show items marked as alwaysShow
+      if (item.alwaysShow) {
+        return true;
+      }
+      // Otherwise check permission
+      return AccessControl.hasPermission(userRole as any, item.permission);
+    });
   };
 
   const handleItemClick = (itemId: string) => {
