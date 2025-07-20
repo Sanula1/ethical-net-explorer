@@ -1,170 +1,431 @@
+import React, { useState } from 'react';
+import { AuthProvider } from '@/contexts/AuthContext';
+import Sidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
+import Dashboard from '@/components/Dashboard';
+import Users from '@/components/Users';
+import Students from '@/components/Students';
+import Teachers from '@/components/Teachers';
+import Parents from '@/components/Parents';
+import Grades from '@/components/Grades';
+import Classes from '@/components/Classes';
+import Subjects from '@/components/Subjects';
+import Institutes from '@/components/Institutes';
+import Grading from '@/components/Grading';
+import Attendance from '@/components/Attendance';
+import AttendanceMarking from '@/components/AttendanceMarking';
+import AttendanceMarkers from '@/components/AttendanceMarkers';
+import QRAttendance from '@/components/QRAttendance';
+import Lectures from '@/components/Lectures';
+import LiveLectures from '@/components/LiveLectures';
+import Homework from '@/components/Homework';
+import Exams from '@/components/Exams';
+import Results from '@/components/Results';
+import Profile from '@/components/Profile';
+import InstituteDetails from '@/components/InstituteDetails';
+import Login from '@/components/Login';
+import InstituteSelector from '@/components/InstituteSelector';
+import ClassSelector from '@/components/ClassSelector';
+import SubjectSelector from '@/components/SubjectSelector';
+import ParentChildrenSelector from '@/components/ParentChildrenSelector';
+import Organizations from '@/components/Organizations';
+import Gallery from '@/components/Gallery';
+import Settings from '@/components/Settings';
+import Appearance from '@/components/Appearance';
+import OrganizationHeader from '@/components/OrganizationHeader';
 
-import { useState, useEffect } from "react";
-import { Shield, Terminal, Code, Lock, Eye, Zap, ChevronDown, Github, Linkedin, Mail, Phone } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import HeroSection from "@/components/HeroSection";
-import ServicesSection from "@/components/ServicesSection";
-import SkillsSection from "@/components/SkillsSection";
-import ContactSection from "@/components/ContactSection";
+// Create a separate component that uses the auth hook
+import { useAuth } from '@/contexts/AuthContext';
 
-const Index = () => {
-  const [currentText, setCurrentText] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [loopNum, setLoopNum] = useState(0);
-  const [typingSpeed, setTypingSpeed] = useState(150);
+const AppContent = () => {
+  const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization } = useAuth();
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const textArray = ["Ethical Hacker", "Penetration Tester", "Security Consultant", "Cyber Guardian"];
+  const handleMenuClick = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
 
-  useEffect(() => {
-    const handleTyping = () => {
-      const i = loopNum % textArray.length;
-      const fullText = textArray[i];
+  const handleSidebarClose = () => {
+    setIsSidebarOpen(false);
+  };
 
-      setCurrentText(
-        isDeleting
-          ? fullText.substring(0, currentText.length - 1)
-          : fullText.substring(0, currentText.length + 1)
+  const renderComponent = () => {
+    // System Admin doesn't need institute/class/subject selection flow
+    if (user?.role === 'SystemAdmin') {
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'users':
+          return <Users />;
+        case 'students':
+          return <Students />;
+        case 'teachers':
+          return <Teachers />;
+        case 'parents':
+          return <Parents />;
+        case 'grades':
+          return <Grades />;
+        case 'classes':
+          return <Classes apiLevel="institute" />;
+        case 'subjects':
+          return <Subjects apiLevel="institute" />;
+        case 'institutes':
+          return <Institutes />;
+        case 'grading':
+        case 'grades-table':
+        case 'create-grade':
+        case 'assign-grade-classes':
+        case 'view-grade-classes':
+          return <Grading />;
+        case 'attendance':
+          return <Attendance />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+        case 'attendance-markers':
+          return <AttendanceMarkers />;
+        case 'qr-attendance':
+          return <QRAttendance />;
+        case 'lectures':
+          return <Lectures />;
+        case 'live-lectures':
+          return <LiveLectures />;
+        case 'homework':
+          return <Homework />;
+        case 'exams':
+          return <Exams />;
+        case 'results':
+          return <Results />;
+        case 'profile':
+          return <Profile />;
+        case 'institute-details':
+          return <InstituteDetails />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
+    }
+
+    // For Organization Manager - show organizations list or organization-specific dashboard
+    if (user?.role === 'OrganizationManager') {
+      if (!selectedOrganization && currentPage !== 'organizations') {
+        return <Organizations />;
+      }
+
+      // Add Organization Header for specific sections
+      const shouldShowOrgHeader = ['dashboard', 'students', 'lectures', 'gallery'].includes(currentPage);
+      
+      const getPageTitle = () => {
+        switch (currentPage) {
+          case 'dashboard': return 'Dashboard';
+          case 'students': return 'Students';
+          case 'lectures': return 'Lectures';
+          case 'gallery': return 'Gallery';
+          default: return 'Management';
+        }
+      };
+
+      const renderWithHeader = (component: React.ReactNode) => (
+        <>
+          {shouldShowOrgHeader && <OrganizationHeader title={getPageTitle()} />}
+          {component}
+        </>
       );
 
-      setTypingSpeed(isDeleting ? 30 : 150);
-
-      if (!isDeleting && currentText === fullText) {
-        setTimeout(() => setIsDeleting(true), 500);
-      } else if (isDeleting && currentText === "") {
-        setIsDeleting(false);
-        setLoopNum(loopNum + 1);
+      switch (currentPage) {
+        case 'organizations':
+          return <Organizations />;
+        case 'dashboard':
+          return renderWithHeader(<Dashboard />);
+        case 'students':
+          return renderWithHeader(<Students />);
+        case 'lectures':
+          return renderWithHeader(<Lectures />);
+        case 'gallery':
+          return renderWithHeader(<Gallery />);
+        case 'appearance':
+          return <Appearance />;
+        case 'profile':
+          return <Profile />;
+        case 'settings':
+          return <Settings />;
+        default:
+          return <Dashboard />;
       }
-    };
+    }
 
-    const timer = setTimeout(handleTyping, typingSpeed);
-    return () => clearTimeout(timer);
-  }, [currentText, isDeleting, loopNum, typingSpeed, textArray]);
+    // For Student role - simplified interface
+    if (user?.role === 'Student') {
+      if (!selectedInstitute && user.institutes.length === 1) {
+        // Auto-select the only institute available
+        // This should be handled by the auth context
+      }
+      
+      if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
+        return <InstituteSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'attendance':
+          return <Attendance />;
+        case 'lectures':
+          return <Lectures />;
+        case 'homework':
+          return <Homework />;
+        case 'exams':
+          return <Exams />;
+        case 'results':
+          return <Results />;
+        case 'profile':
+          return <Profile />;
+        case 'select-institute':
+          return <InstituteSelector />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
+    }
+
+    // For Parent role
+    if (user?.role === 'Parent') {
+      if (currentPage === 'parent-children') {
+        return <ParentChildrenSelector />;
+      }
+
+      if (!selectedChild && currentPage !== 'parent-children' && currentPage !== 'profile') {
+        return <ParentChildrenSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'attendance':
+          return <Attendance />;
+        case 'homework':
+          return <Homework />;
+        case 'results':
+          return <Results />;
+        case 'exams':
+          return <Exams />;
+        case 'profile':
+          return <Profile />;
+        case 'parent-children':
+          return <ParentChildrenSelector />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <ParentChildrenSelector />;
+      }
+    }
+
+    // For Teacher role
+    if (user?.role === 'Teacher') {
+      if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
+        return <InstituteSelector />;
+      }
+
+      if (currentPage === 'select-class') {
+        return <ClassSelector />;
+      }
+
+      if (currentPage === 'select-subject') {
+        return <SubjectSelector />;
+      }
+
+      const classRequiredPages = ['attendance-marking', 'grading'];
+      if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
+        return <ClassSelector />;
+      }
+
+      const subjectRequiredPages = ['lectures'];
+      if (selectedClass && !selectedSubject && subjectRequiredPages.includes(currentPage)) {
+        return <SubjectSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'students':
+          return <Students />;
+        case 'parents':
+          return <Parents />;
+        case 'classes':
+          return <Classes apiLevel="institute" />;
+        case 'subjects':
+          return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
+        case 'select-institute':
+          return <InstituteSelector />;
+        case 'grading':
+        case 'grades-table':
+        case 'create-grade':
+        case 'assign-grade-classes':
+        case 'view-grade-classes':
+          return <Grading />;
+        case 'attendance':
+          return <Attendance />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+        case 'lectures':
+          return <Lectures />;
+        case 'homework':
+          return <Homework />;
+        case 'exams':
+          return <Exams />;
+        case 'results':
+          return <Results />;
+        case 'profile':
+          return <Profile />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
+    }
+
+    // For AttendanceMarker role
+    if (user?.role === 'AttendanceMarker') {
+      if (!selectedInstitute && currentPage !== 'select-institute') {
+        return <InstituteSelector />;
+      }
+
+      if (!selectedClass && currentPage !== 'select-class') {
+        return <ClassSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+        case 'qr-attendance':
+          return <QRAttendance />;
+        case 'profile':
+          return <Profile />;
+        case 'select-institute':
+          return <InstituteSelector />;
+        case 'select-class':
+          return <ClassSelector />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+      }
+    }
+
+    // For InstituteAdmin and other roles - full access within their institute
+    if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
+      return <InstituteSelector />;
+    }
+
+    if (currentPage === 'select-class') {
+      return <ClassSelector />;
+    }
+
+    if (currentPage === 'select-subject') {
+      return <SubjectSelector />;
+    }
+
+    const classRequiredPages = ['attendance-marking', 'grading'];
+    if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
+      return <ClassSelector />;
+    }
+
+    const subjectRequiredPages = ['lectures'];
+    if (selectedClass && !selectedSubject && subjectRequiredPages.includes(currentPage)) {
+      return <SubjectSelector />;
+    }
+
+    switch (currentPage) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'users':
+        return <Users />;
+      case 'students':
+        return <Students />;
+      case 'teachers':
+        return <Teachers />;
+      case 'parents':
+        return <Parents />;
+      case 'grades':
+        return <Grades />;
+      case 'classes':
+        return <Classes apiLevel="institute" />;
+      case 'subjects':
+        return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
+      case 'institutes':
+        return <Institutes />;
+      case 'select-institute':
+        return <InstituteSelector />;
+      case 'grading':
+      case 'grades-table':
+      case 'create-grade':
+      case 'assign-grade-classes':
+      case 'view-grade-classes':
+        return <Grading />;
+      case 'attendance':
+        return <Attendance />;
+      case 'attendance-marking':
+        return <AttendanceMarking onNavigate={setCurrentPage} />;
+      case 'attendance-markers':
+        return <AttendanceMarkers />;
+      case 'qr-attendance':
+        return <QRAttendance />;
+      case 'lectures':
+        return <Lectures />;
+      case 'live-lectures':
+        return <LiveLectures />;
+      case 'homework':
+        return <Homework />;
+      case 'exams':
+        return <Exams />;
+      case 'results':
+        return <Results />;
+      case 'profile':
+        return <Profile />;
+      case 'institute-details':
+        return <InstituteDetails />;
+      case 'appearance':
+        return <Appearance />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  if (!user) {
+    return <Login onLogin={login} loginFunction={login} />;
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-green-400">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-black/80 backdrop-blur-sm border-b border-green-500/20">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Shield className="h-8 w-8 text-green-400" />
-              <span className="text-xl font-bold text-white">CyberGuardian</span>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      <div className="flex w-full h-screen">
+        <Sidebar 
+          isOpen={isSidebarOpen}
+          onClose={handleSidebarClose}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <Header onMenuClick={handleMenuClick} />
+          <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
+            <div className="max-w-full">
+              {renderComponent()}
             </div>
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="#home" className="hover:text-green-300 transition-colors">Home</a>
-              <a href="#services" className="hover:text-green-300 transition-colors">Services</a>
-              <a href="#skills" className="hover:text-green-300 transition-colors">Skills</a>
-              <a href="#contact" className="hover:text-green-300 transition-colors">Contact</a>
-            </div>
-          </div>
+          </main>
         </div>
-      </nav>
-
-      {/* Hero Section */}
-      <section id="home" className="min-h-screen flex items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-green-900/10 to-blue-900/10"></div>
-        <div className="container mx-auto px-6 text-center relative z-10">
-          <div className="max-w-4xl mx-auto">
-            <div className="mb-8">
-              <div className="inline-block p-4 border border-green-500/30 rounded-lg bg-black/40 backdrop-blur-sm mb-6">
-                <Terminal className="h-12 w-12 text-green-400 mx-auto" />
-              </div>
-              <h1 className="text-5xl md:text-7xl font-bold text-white mb-4">
-                I'm a <span className="text-green-400">{currentText}</span>
-                <span className="animate-pulse">|</span>
-              </h1>
-              <p className="text-xl md:text-2xl text-gray-300 mb-8">
-                Protecting digital assets through ethical penetration testing and security consulting
-              </p>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-              <Button size="lg" className="bg-green-600 hover:bg-green-700 text-black font-semibold">
-                <Lock className="mr-2 h-5 w-5" />
-                View My Work
-              </Button>
-              <Button size="lg" variant="outline" className="border-green-500 text-green-400 hover:bg-green-500/10">
-                <Mail className="mr-2 h-5 w-5" />
-                Get In Touch
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-              <Card className="bg-black/40 border-green-500/30 backdrop-blur-sm">
-                <CardHeader className="text-center">
-                  <Eye className="h-8 w-8 text-green-400 mx-auto mb-2" />
-                  <CardTitle className="text-white">Penetration Testing</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-400">Comprehensive security assessments to identify vulnerabilities</p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-black/40 border-green-500/30 backdrop-blur-sm">
-                <CardHeader className="text-center">
-                  <Shield className="h-8 w-8 text-green-400 mx-auto mb-2" />
-                  <CardTitle className="text-white">Security Consulting</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-400">Expert guidance on cybersecurity best practices and strategies</p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-black/40 border-green-500/30 backdrop-blur-sm">
-                <CardHeader className="text-center">
-                  <Zap className="h-8 w-8 text-green-400 mx-auto mb-2" />
-                  <CardTitle className="text-white">Incident Response</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-400">Rapid response and forensic analysis for security breaches</p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-        
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-          <ChevronDown className="h-8 w-8 text-green-400" />
-        </div>
-      </section>
-
-      {/* Services Section */}
-      <ServicesSection />
-
-      {/* Skills Section */}
-      <SkillsSection />
-
-      {/* Contact Section */}
-      <ContactSection />
-
-      {/* Footer */}
-      <footer className="bg-black border-t border-green-500/20 py-8">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <Shield className="h-6 w-6 text-green-400" />
-              <span className="text-white font-semibold">CyberGuardian</span>
-            </div>
-            <div className="flex items-center space-x-6">
-              <a href="#" className="text-gray-400 hover:text-green-400 transition-colors">
-                <Github className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-green-400 transition-colors">
-                <Linkedin className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-green-400 transition-colors">
-                <Mail className="h-5 w-5" />
-              </a>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-green-500/20 text-center text-gray-400">
-            <p>&copy; 2024 CyberGuardian. All rights reserved. Securing the digital world, one system at a time.</p>
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
+  );
+};
+
+const Index = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 
