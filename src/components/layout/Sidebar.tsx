@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,12 +49,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           label: 'Select Institute',
           icon: LayoutDashboard,
           permission: 'view-dashboard'
-        },
-        {
-          id: 'organizations',
-          label: 'Select Organization',
-          icon: Building2,
-          permission: 'view-organizations'
         }
       ];
     }
@@ -123,10 +118,16 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         label: 'Institutes',
         icon: Building2,
         permission: 'view-institutes'
-      },
+      }
+    ];
+  };
+
+  // Organization selection items - separate main section
+  const getOrganizationItems = () => {
+    return [
       {
         id: 'organizations',
-        label: 'Organizations',
+        label: 'Select Organization',
         icon: Building2,
         permission: 'view-organizations'
       }
@@ -222,6 +223,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   const userRole = user?.role || 'Student';
   const menuItems = getMenuItems();
+  const organizationItems = getOrganizationItems();
 
   const filterItemsByPermission = (items: any[]) => {
     return items.filter(item => AccessControl.hasPermission(userRole as any, item.permission));
@@ -385,6 +387,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
+            <SidebarSection title="Organizations" items={organizationItems} />
             {/* Only show attendance and academic sections if institute is selected */}
             {selectedInstitute && (
               <>
