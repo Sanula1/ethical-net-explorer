@@ -33,7 +33,6 @@ import Gallery from '@/components/Gallery';
 import Settings from '@/components/Settings';
 import Appearance from '@/components/Appearance';
 import OrganizationHeader from '@/components/OrganizationHeader';
-import InstituteLogin from '@/components/InstituteLogin';
 
 // Create a separate component that uses the auth hook
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,24 +51,7 @@ const AppContent = () => {
   };
 
   const renderComponent = () => {
-    // Step 1: Organization selection flow
-    if (!selectedOrganization) {
-      if (currentPage === 'organizations' || currentPage === 'dashboard') {
-        return <Organizations />;
-      }
-      return <Organizations />;
-    }
-
-    // Step 2: Institute selection and login flow
-    if (selectedOrganization && !selectedInstitute) {
-      if (currentPage === 'select-institute') {
-        return <InstituteLogin onBack={() => setCurrentPage('organizations')} />;
-      }
-      return <InstituteSelector />;
-    }
-
-    // Step 3: Full system access after both organization and institute are selected
-    // System Admin doesn't need additional flows
+    // System Admin doesn't need institute/class/subject selection flow
     if (user?.role === 'SystemAdmin') {
       switch (currentPage) {
         case 'dashboard':
@@ -127,6 +109,10 @@ const AppContent = () => {
 
     // For Organization Manager - show organizations list or organization-specific dashboard
     if (user?.role === 'OrganizationManager') {
+      if (!selectedOrganization && currentPage !== 'organizations') {
+        return <Organizations />;
+      }
+
       // Add Organization Header for specific sections
       const shouldShowOrgHeader = ['dashboard', 'students', 'lectures', 'gallery'].includes(currentPage);
       
@@ -148,6 +134,8 @@ const AppContent = () => {
       );
 
       switch (currentPage) {
+        case 'organizations':
+          return <Organizations />;
         case 'dashboard':
           return renderWithHeader(<Dashboard />);
         case 'students':
