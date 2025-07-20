@@ -45,7 +45,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       return [
         {
           id: 'dashboard',
-          label: 'Select Institute',
+          label: 'Select Institutes',
           icon: LayoutDashboard,
           permission: 'view-dashboard'
         },
