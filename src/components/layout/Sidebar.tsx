@@ -56,7 +56,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       }
     ];
 
-    // If no institute is selected, return basic navigation
+    // If no institute is selected, return basic navigation including organizations
     if (!selectedInstitute) {
       return baseItems;
     }
