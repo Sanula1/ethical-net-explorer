@@ -33,6 +33,7 @@ import Gallery from '@/components/Gallery';
 import Settings from '@/components/Settings';
 import Appearance from '@/components/Appearance';
 import OrganizationHeader from '@/components/OrganizationHeader';
+import OrganizationLogin from '@/components/OrganizationLogin';
 
 // Create a separate component that uses the auth hook
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,7 +51,18 @@ const AppContent = () => {
     setIsSidebarOpen(false);
   };
 
+  const handleOrganizationLogin = (credentials: { email: string; password: string }) => {
+    console.log('Organization login with:', credentials);
+    // Handle organization login logic here
+    setCurrentPage('dashboard');
+  };
+
   const renderComponent = () => {
+    // Handle organization login page
+    if (currentPage === 'organizations' && !selectedOrganization) {
+      return <OrganizationLogin onLogin={handleOrganizationLogin} />;
+    }
+
     // System Admin doesn't need institute/class/subject selection flow
     if (user?.role === 'SystemAdmin') {
       switch (currentPage) {
@@ -397,6 +409,11 @@ const AppContent = () => {
 
   if (!user) {
     return <Login onLogin={login} loginFunction={login} />;
+  }
+
+  // If organizations page is active, render full screen without sidebar
+  if (currentPage === 'organizations' && !selectedOrganization) {
+    return renderComponent();
   }
 
   return (

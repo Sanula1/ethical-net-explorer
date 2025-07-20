@@ -48,6 +48,12 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           label: 'Select Institute',
           icon: LayoutDashboard,
           permission: 'view-dashboard'
+        },
+        {
+          id: 'organizations',
+          label: 'Organizations',
+          icon: Building2,
+          permission: 'view-organizations'
         }
       ];
     }
