@@ -40,7 +40,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state
   const getMenuItems = () => {
-    // Base items that are always available
+    // Base items that are always available for all users
     const baseItems = [
       {
         id: 'dashboard',
