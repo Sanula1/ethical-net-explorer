@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -41,19 +40,24 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state
   const getMenuItems = () => {
-    // If no institute is selected, show only basic navigation
-    if (!selectedInstitute) {
+    // If no organization is selected, only show organization selection
+    if (!selectedOrganization) {
+      return [];
+    }
+
+    // If organization is selected but no institute, show institute selection
+    if (selectedOrganization && !selectedInstitute) {
       return [
         {
-          id: 'dashboard',
+          id: 'select-institute',
           label: 'Select Institute',
-          icon: LayoutDashboard,
-          permission: 'view-dashboard'
+          icon: Building2,
+          permission: 'view-institutes'
         }
       ];
     }
 
-    // If institute is selected, show full navigation
+    // If both organization and institute are selected, show full navigation
     return [
       {
         id: 'dashboard',
@@ -122,8 +126,12 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     ];
   };
 
-  // Organization selection items - separate main section
+  // Organization selection items - only show when no organization is selected
   const getOrganizationItems = () => {
+    if (selectedOrganization) {
+      return [];
+    }
+    
     return [
       {
         id: 'organizations',
@@ -240,10 +248,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
   };
 
   const handleBackNavigation = () => {
-    if (selectedOrganization) {
-      // Go back from organization level to organization selection
-      setSelectedOrganization(null);
-    } else if (selectedChild) {
+    if (selectedChild) {
       // Go back from child level to children selection
       setSelectedChild(null);
     } else if (selectedSubject) {
@@ -253,8 +258,11 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       // Go back from class level to institute level
       setSelectedClass(null);
     } else if (selectedInstitute) {
-      // Go back from institute level to institute selection
+      // Go back from institute level to organization level
       setSelectedInstitute(null);
+    } else if (selectedOrganization) {
+      // Go back from organization level to organization selection
+      setSelectedOrganization(null);
     }
   };
 
@@ -329,8 +337,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           </div>
         </div>
 
-        {/* Context Info - Only show for non-SystemAdmin users */}
-        {user?.role !== 'SystemAdmin' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
+        {/* Context Info - Show current selection hierarchy */}
+        {(selectedOrganization || selectedInstitute || selectedClass || selectedSubject || selectedChild) && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
@@ -386,8 +394,12 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         {/* Navigation */}
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
-            <SidebarSection title="Main" items={menuItems} />
+            {/* Show Organizations section only when no organization is selected */}
             <SidebarSection title="Organizations" items={organizationItems} />
+            
+            {/* Show Main section based on selection state */}
+            {menuItems.length > 0 && <SidebarSection title="Main" items={menuItems} />}
+            
             {/* Only show attendance and academic sections if institute is selected */}
             {selectedInstitute && (
               <>
