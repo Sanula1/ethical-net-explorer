@@ -40,7 +40,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state
   const getMenuItems = () => {
-    // If no institute is selected, show only basic navigation
+    // If no institute is selected, show basic navigation with organizations
     if (!selectedInstitute) {
       return [
         {
@@ -123,22 +123,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         label: 'Institutes',
         icon: Building2,
         permission: 'view-institutes'
-      }
-    ];
-  };
-
-  // Organization selection items - only show when no institute is selected
-  const getOrganizationItems = () => {
-    if (selectedInstitute) {
-      return [];
-    }
-    
-    return [
-      {
-        id: 'organizations',
-        label: 'Select Organization',
-        icon: Building2,
-        permission: 'view-organizations'
       }
     ];
   };
@@ -232,13 +216,13 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   const userRole = user?.role || 'Student';
   const menuItems = getMenuItems();
-  const organizationItems = getOrganizationItems();
 
   const filterItemsByPermission = (items: any[]) => {
     return items.filter(item => AccessControl.hasPermission(userRole as any, item.permission));
   };
 
   const handleItemClick = (itemId: string) => {
+    console.log('Sidebar item clicked:', itemId);
     onPageChange(itemId);
     onClose();
   };
@@ -397,9 +381,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
             {/* Show Organizations section only when no institute is selected */}
-            {organizationItems.length > 0 && (
-              <SidebarSection title="Organizations" items={organizationItems} />
-            )}
             {/* Only show attendance and academic sections if institute is selected */}
             {selectedInstitute && (
               <>
