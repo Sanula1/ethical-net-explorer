@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -122,8 +121,12 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     ];
   };
 
-  // Organization selection items - separate main section
+  // Organization selection items - only show when no institute is selected
   const getOrganizationItems = () => {
+    if (selectedInstitute) {
+      return [];
+    }
+    
     return [
       {
         id: 'organizations',
@@ -387,7 +390,10 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            <SidebarSection title="Organizations" items={organizationItems} />
+            {/* Show Organizations section only when no institute is selected */}
+            {organizationItems.length > 0 && (
+              <SidebarSection title="Organizations" items={organizationItems} />
+            )}
             {/* Only show attendance and academic sections if institute is selected */}
             {selectedInstitute && (
               <>
