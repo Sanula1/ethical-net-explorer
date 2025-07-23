@@ -189,8 +189,5 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Export AuthContext for direct access if needed
-export { AuthContext };
-
 // Re-export types for backward compatibility
 export type { User, UserRole } from './types/auth.types';
