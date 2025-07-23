@@ -1,8 +1,11 @@
-
 import { LoginCredentials, ApiResponse, Institute } from '../types/auth.types';
 
 export const getBaseUrl = () => {
   return localStorage.getItem('baseUrl') || '';
+};
+
+export const getBaseUrl2 = () => {
+  return localStorage.getItem('baseUrl2') || '';
 };
 
 export const getApiHeaders = () => {

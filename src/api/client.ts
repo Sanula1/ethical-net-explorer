@@ -1,5 +1,5 @@
 
-import { getBaseUrl } from '@/contexts/utils/auth.api';
+import { getBaseUrl, getBaseUrl2 } from '@/contexts/utils/auth.api';
 
 export interface ApiResponse<T = any> {
   data?: T;
@@ -25,11 +25,26 @@ export interface ApiError {
 }
 
 class ApiClient {
+  private useBaseUrl2 = false;
+
+  setUseBaseUrl2(use: boolean) {
+    this.useBaseUrl2 = use;
+  }
+
   private getAuthToken(): string | null {
+    // For organization-specific calls, use org_access_token
+    if (this.useBaseUrl2) {
+      return localStorage.getItem('org_access_token');
+    }
+    
     // Try multiple token storage keys for compatibility
     return localStorage.getItem('access_token') || 
            localStorage.getItem('token') || 
            localStorage.getItem('authToken');
+  }
+
+  private getCurrentBaseUrl(): string {
+    return this.useBaseUrl2 ? getBaseUrl2() : getBaseUrl();
   }
 
   private getHeaders(): Record<string, string> {
@@ -64,7 +79,11 @@ class ApiClient {
       if (response.status === 401) {
         console.warn('Authentication failed - token may be expired');
         // Optionally clear invalid token
-        localStorage.removeItem('access_token');
+        if (this.useBaseUrl2) {
+          localStorage.removeItem('org_access_token');
+        } else {
+          localStorage.removeItem('access_token');
+        }
       }
       
       throw new Error(errorData.message || `HTTP Error: ${response.status}`);
@@ -79,7 +98,7 @@ class ApiClient {
   }
 
   async get<T = any>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const baseUrl = getBaseUrl();
+    const baseUrl = this.getCurrentBaseUrl();
     const url = new URL(`${baseUrl}${endpoint}`);
     
     if (params) {
@@ -102,7 +121,7 @@ class ApiClient {
   }
 
   async post<T = any>(endpoint: string, data?: any): Promise<T> {
-    const baseUrl = getBaseUrl();
+    const baseUrl = this.getCurrentBaseUrl();
     const url = `${baseUrl}${endpoint}`;
     
     console.log('POST Request:', url, data);
@@ -118,7 +137,7 @@ class ApiClient {
   }
 
   async put<T = any>(endpoint: string, data?: any): Promise<T> {
-    const baseUrl = getBaseUrl();
+    const baseUrl = this.getCurrentBaseUrl();
     const url = `${baseUrl}${endpoint}`;
     
     console.log('PUT Request:', url, data);
@@ -134,7 +153,7 @@ class ApiClient {
   }
 
   async patch<T = any>(endpoint: string, data?: any): Promise<T> {
-    const baseUrl = getBaseUrl();
+    const baseUrl = this.getCurrentBaseUrl();
     const url = `${baseUrl}${endpoint}`;
     
     console.log('PATCH Request:', url, data);
@@ -150,7 +169,7 @@ class ApiClient {
   }
 
   async delete<T = any>(endpoint: string): Promise<T> {
-    const baseUrl = getBaseUrl();
+    const baseUrl = this.getCurrentBaseUrl();
     const url = `${baseUrl}${endpoint}`;
     
     console.log('DELETE Request:', url);

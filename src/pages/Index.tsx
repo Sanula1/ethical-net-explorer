@@ -64,6 +64,12 @@ const AppContent = () => {
   const handleOrganizationSelect = (organization: any) => {
     console.log('Organization selected:', organization);
     setSelectedOrganization(organization);
+    
+    // Switch to using baseUrl2 for organization-specific API calls
+    import('@/api/client').then(({ apiClient }) => {
+      apiClient.setUseBaseUrl2(true);
+    });
+    
     setCurrentPage('dashboard');
   };
 
@@ -73,6 +79,12 @@ const AppContent = () => {
 
   const handleBackToMain = () => {
     setOrganizationLoginData(null);
+    
+    // Switch back to using baseUrl for main API calls
+    import('@/api/client').then(({ apiClient }) => {
+      apiClient.setUseBaseUrl2(false);
+    });
+    
     setCurrentPage('dashboard');
   };
 
