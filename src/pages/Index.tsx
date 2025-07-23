@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,8 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { useToast } from "@/hooks/use-toast"
 import { loginUser, validateToken, fetchUserInstitutes } from '@/contexts/utils/auth.api';
-import { AuthContext } from '@/contexts/AuthContext';
-import { useContext } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Institute } from '@/contexts/types/auth.types';
 import Settings from '@/components/Settings';
 import InstituteSelector from '@/components/InstituteSelector';
@@ -29,10 +29,10 @@ const Index = () => {
   const [password, setPassword] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [currentView, setCurrentView] = useState<'login' | 'settings' | 'institute-selector' | 'organization-login' | 'organization-selector' | 'organization-dashboard' | 'create-organization'>('login');
-  const { setUser, setAccessToken, setRefreshToken, setIsAuthenticated, logout } = useContext(AuthContext);
+  const { user, login, logout } = useAuth();
   const [selectedInstitute, setSelectedInstitute] = useState<Institute | null>(null);
   const [institutes, setInstitutes] = useState<Institute[]>([]);
-  const router = useRouter();
+  const navigate = useNavigate();
   const [organizationLoginResponse, setOrganizationLoginResponse] = useState<any>(null);
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
 
@@ -46,9 +46,6 @@ const Index = () => {
   const validateAuthToken = async (token: string) => {
     try {
       const userData = await validateToken();
-      setUser(userData);
-      setAccessToken(token);
-      setIsAuthenticated(true);
       
       // Fetch user institutes after successful validation
       if (userData?.id && token) {
@@ -68,11 +65,11 @@ const Index = () => {
         console.warn('User ID or token missing after validation');
       }
       
-      router.push('/');
+      navigate('/');
     } catch (error: any) {
       console.error('Token validation failed:', error.message);
       logout();
-      router.push('/');
+      navigate('/');
     }
   };
 
@@ -80,45 +77,32 @@ const Index = () => {
     e.preventDefault();
     setIsLoginLoading(true);
     try {
-      const loginResponse: LoginResponse = await loginUser({ email, password });
-      if (loginResponse?.access_token) {
-        localStorage.setItem('access_token', loginResponse.access_token);
-        localStorage.setItem('refresh_token', loginResponse.refresh_token);
-        setAccessToken(loginResponse.access_token);
-        setRefreshToken(loginResponse.refresh_token);
-        setIsAuthenticated(true);
-        setUser(loginResponse.user);
+      await login({ email, password });
 
-        // Fetch user institutes after successful login
-        if (loginResponse.user?.id && loginResponse.access_token) {
-          const userInstitutes = await fetchUserInstitutes(loginResponse.user.id, loginResponse.access_token);
-          setInstitutes(userInstitutes);
-          
-          // If user has institutes, navigate to institute selector
-          if (userInstitutes.length > 0) {
-            setCurrentView('institute-selector');
-          } else {
-            toast({
-              title: "Info",
-              description: "No institutes found. Please contact your administrator.",
-            });
-          }
+      // Fetch user institutes after successful login
+      const accessToken = localStorage.getItem('access_token');
+      if (user?.id && accessToken) {
+        const userInstitutes = await fetchUserInstitutes(user.id, accessToken);
+        setInstitutes(userInstitutes);
+        
+        // If user has institutes, navigate to institute selector
+        if (userInstitutes.length > 0) {
+          setCurrentView('institute-selector');
         } else {
-          console.warn('User ID or token missing after login');
+          toast({
+            title: "Info",
+            description: "No institutes found. Please contact your administrator.",
+          });
         }
-
-        toast({
-          title: "Success",
-          description: "Login successful!",
-        });
-        router.push('/');
       } else {
-        toast({
-          title: "Error",
-          description: "Invalid credentials. Please try again.",
-          variant: "destructive",
-        });
+        console.warn('User ID or token missing after login');
       }
+
+      toast({
+        title: "Success",
+        description: "Login successful!",
+      });
+      navigate('/');
     } catch (error: any) {
       console.error('Login failed:', error.message);
       toast({
@@ -133,7 +117,7 @@ const Index = () => {
 
   const handleInstituteSelect = (institute: Institute) => {
     setSelectedInstitute(institute);
-    router.push('/dashboard');
+    navigate('/dashboard');
   };
 
   const handleOrganizationLogin = (loginResponse: any) => {
@@ -240,10 +224,51 @@ const Index = () => {
   );
 
   const renderInstituteSelectorView = () => (
-    <InstituteSelector
-      institutes={institutes}
-      onInstituteSelect={handleInstituteSelect}
-    />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Select Institute</h1>
+          <p className="text-gray-600 dark:text-gray-400">Choose an institute to continue</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {institutes.map((institute) => (
+            <Card
+              key={institute.id}
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => handleInstituteSelect(institute)}
+            >
+              <CardHeader>
+                <CardTitle className="text-lg">{institute.name}</CardTitle>
+                <CardDescription>{institute.description}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Code: {institute.code}
+                  </p>
+                  <div className="flex justify-between items-center">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      institute.isActive 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {institute.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        {institutes.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-600 dark:text-gray-400">No institutes found</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 
   const renderOrganizationLoginView = () => (
