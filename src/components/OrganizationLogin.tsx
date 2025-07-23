@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Building2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationApi } from '@/api/organization.api';
+import { apiClient } from '@/api/client';
 
 interface OrganizationLoginProps {
   onLogin?: (loginResponse: any) => void;
@@ -35,6 +36,9 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
     setIsLoading(true);
     
     try {
+      // Switch to baseUrl2 for organization API calls
+      apiClient.setUseBaseUrl2(true);
+      
       const loginResponse = await organizationApi.loginToOrganization({ email, password });
       
       // Store organization access token
