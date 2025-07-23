@@ -4,14 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, Eye, EyeOff } from 'lucide-react';
+import { Building2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { organizationApi } from '@/api/organization.api';
 
 interface OrganizationLoginProps {
-  onLogin?: (credentials: { email: string; password: string }) => void;
+  onLogin?: (loginResponse: any) => void;
+  onBack?: () => void;
 }
 
-const OrganizationLogin = ({ onLogin }: OrganizationLoginProps) => {
+const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -33,11 +35,13 @@ const OrganizationLogin = ({ onLogin }: OrganizationLoginProps) => {
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const loginResponse = await organizationApi.loginToOrganization({ email, password });
+      
+      // Store organization access token
+      localStorage.setItem('org_access_token', loginResponse.access_token);
       
       if (onLogin) {
-        onLogin({ email, password });
+        onLogin(loginResponse);
       }
       
       toast({
@@ -45,6 +49,7 @@ const OrganizationLogin = ({ onLogin }: OrganizationLoginProps) => {
         description: "Welcome to the organization portal",
       });
     } catch (error) {
+      console.error('Organization login error:', error);
       toast({
         title: "Login Failed",
         description: "Invalid credentials. Please try again.",
@@ -59,8 +64,20 @@ const OrganizationLogin = ({ onLogin }: OrganizationLoginProps) => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center mb-4">
-            <Building2 className="h-12 w-12 text-blue-600" />
+          <div className="flex items-center justify-between mb-4">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="p-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <div className="flex items-center justify-center flex-1">
+              <Building2 className="h-12 w-12 text-blue-600" />
+            </div>
           </div>
           <CardTitle className="text-2xl font-bold">Organization Login</CardTitle>
           <CardDescription>

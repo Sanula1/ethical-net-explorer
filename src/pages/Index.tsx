@@ -34,14 +34,18 @@ import Settings from '@/components/Settings';
 import Appearance from '@/components/Appearance';
 import OrganizationHeader from '@/components/OrganizationHeader';
 import OrganizationLogin from '@/components/OrganizationLogin';
+import OrganizationSelector from '@/components/OrganizationSelector';
+import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
 
 // Create a separate component that uses the auth hook
 import { useAuth } from '@/contexts/AuthContext';
 
 const AppContent = () => {
-  const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization } = useAuth();
+  const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, setSelectedOrganization } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [organizationLoginData, setOrganizationLoginData] = useState<any>(null);
+  const [showCreateOrgForm, setShowCreateOrgForm] = useState(false);
 
   const handleMenuClick = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -51,16 +55,83 @@ const AppContent = () => {
     setIsSidebarOpen(false);
   };
 
-  const handleOrganizationLogin = (credentials: { email: string; password: string }) => {
-    console.log('Organization login with:', credentials);
-    // Handle organization login logic here
+  const handleOrganizationLogin = (loginResponse: any) => {
+    console.log('Organization login successful:', loginResponse);
+    setOrganizationLoginData(loginResponse);
+    setCurrentPage('organization-selector');
+  };
+
+  const handleOrganizationSelect = (organization: any) => {
+    console.log('Organization selected:', organization);
+    setSelectedOrganization(organization);
     setCurrentPage('dashboard');
   };
 
+  const handleBackToOrganizationSelector = () => {
+    setCurrentPage('organization-selector');
+  };
+
+  const handleBackToMain = () => {
+    setOrganizationLoginData(null);
+    setCurrentPage('dashboard');
+  };
+
+  const handleCreateOrganization = () => {
+    setShowCreateOrgForm(true);
+  };
+
+  const handleCreateOrganizationSuccess = (organization: any) => {
+    console.log('Organization created successfully:', organization);
+    setShowCreateOrgForm(false);
+    setCurrentPage('organization-selector');
+  };
+
+  const handleCreateOrganizationCancel = () => {
+    setShowCreateOrgForm(false);
+  };
+
   const renderComponent = () => {
-    // Handle organization login page
-    if (currentPage === 'organizations' && !selectedOrganization) {
-      return <OrganizationLogin onLogin={handleOrganizationLogin} />;
+    // Handle organization-related pages
+    if (currentPage === 'organizations') {
+      if (showCreateOrgForm) {
+        return (
+          <CreateOrganizationForm
+            onSuccess={handleCreateOrganizationSuccess}
+            onCancel={handleCreateOrganizationCancel}
+          />
+        );
+      }
+      
+      if (!organizationLoginData) {
+        return (
+          <OrganizationLogin
+            onLogin={handleOrganizationLogin}
+            onBack={handleBackToMain}
+          />
+        );
+      }
+      
+      if (!selectedOrganization) {
+        return (
+          <OrganizationSelector
+            onOrganizationSelect={handleOrganizationSelect}
+            onBack={handleBackToMain}
+            onCreateOrganization={handleCreateOrganization}
+            userPermissions={organizationLoginData?.permissions}
+          />
+        );
+      }
+    }
+
+    if (currentPage === 'organization-selector') {
+      return (
+        <OrganizationSelector
+          onOrganizationSelect={handleOrganizationSelect}
+          onBack={handleBackToMain}
+          onCreateOrganization={handleCreateOrganization}
+          userPermissions={organizationLoginData?.permissions}
+        />
+      );
     }
 
     // System Admin doesn't need institute/class/subject selection flow

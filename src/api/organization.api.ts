@@ -7,6 +7,11 @@ export interface Organization {
   type: 'INSTITUTE' | 'GLOBAL';
   isPublic: boolean;
   instituteId: string | null;
+  userRole?: string;
+  isVerified?: boolean;
+  joinedAt?: string;
+  memberCount?: number;
+  causeCount?: number;
 }
 
 export interface OrganizationCreateData {
@@ -43,31 +48,61 @@ export interface OrganizationQueryParams {
   isPublic?: boolean;
 }
 
+export interface OrganizationLoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface OrganizationLoginResponse {
+  access_token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    isFirstLogin: boolean;
+    lastLoginAt: any;
+  };
+  permissions: {
+    organizations: string[];
+    isGlobalAdmin: boolean;
+  };
+}
+
 class OrganizationApiClient {
-  private baseUrl = 'http://localhost:3000/organization/api/v1';
+  private baseUrl = '/organization/api/v1';
+
+  async loginToOrganization(credentials: OrganizationLoginCredentials): Promise<OrganizationLoginResponse> {
+    const response = await apiClient.post<OrganizationLoginResponse>(`${this.baseUrl}/auth/login`, credentials);
+    return response;
+  }
+
+  async getUserEnrolledOrganizations(params?: OrganizationQueryParams): Promise<OrganizationResponse> {
+    const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations/user/enrolled`, params);
+    return response;
+  }
 
   async createOrganization(data: OrganizationCreateData): Promise<Organization> {
-    const response = await apiClient.post<Organization>('/organizations', data);
+    const response = await apiClient.post<Organization>(`${this.baseUrl}/organizations`, data);
     return response;
   }
 
   async getOrganizations(params?: OrganizationQueryParams): Promise<OrganizationResponse> {
-    const response = await apiClient.get<OrganizationResponse>('/organizations', params);
+    const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations`, params);
     return response;
   }
 
   async getOrganizationById(id: string): Promise<Organization> {
-    const response = await apiClient.get<Organization>(`/organizations/${id}`);
+    const response = await apiClient.get<Organization>(`${this.baseUrl}/organizations/${id}`);
     return response;
   }
 
   async updateOrganization(id: string, data: Partial<OrganizationCreateData>): Promise<Organization> {
-    const response = await apiClient.put<Organization>(`/organizations/${id}`, data);
+    const response = await apiClient.put<Organization>(`${this.baseUrl}/organizations/${id}`, data);
     return response;
   }
 
   async deleteOrganization(id: string): Promise<void> {
-    await apiClient.delete(`/organizations/${id}`);
+    await apiClient.delete(`${this.baseUrl}/organizations/${id}`);
   }
 }
 
