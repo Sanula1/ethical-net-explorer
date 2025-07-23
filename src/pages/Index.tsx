@@ -11,7 +11,6 @@ import { loginUser, validateToken, fetchUserInstitutes } from '@/contexts/utils/
 import { useAuth } from '@/contexts/AuthContext';
 import { Institute } from '@/contexts/types/auth.types';
 import Settings from '@/components/Settings';
-import InstituteSelector from '@/components/InstituteSelector';
 import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
