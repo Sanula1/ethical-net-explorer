@@ -380,6 +380,14 @@ const ClassSelector = () => {
     );
   }
 
+  const handleRefreshClick = () => {
+    fetchClassesByRole(true);
+  };
+
+  const handleLoadDataClick = () => {
+    fetchClassesByRole(false);
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -407,7 +415,7 @@ const ClassSelector = () => {
             Filters
           </Button>
           <Button 
-            onClick={fetchClassesByRole} 
+            onClick={handleRefreshClick}
             disabled={isLoading}
             variant="outline"
             size="sm"
@@ -563,7 +571,7 @@ const ClassSelector = () => {
             Click the refresh button above to load your classes
           </p>
           <Button 
-            onClick={fetchClassesByRole} 
+            onClick={handleLoadDataClick}
             disabled={isLoading}
             className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
           >
