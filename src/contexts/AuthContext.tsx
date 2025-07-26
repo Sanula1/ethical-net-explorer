@@ -46,15 +46,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const data = await loginUser(credentials);
       console.log('Login response received:', data);
 
-      // With cookie-based auth, we don't need to manually handle tokens
-      // The server sets the HttpOnly cookie automatically
+      // The server should have set an HttpOnly cookie automatically
+      // Now we need to fetch user institutes using that cookie
       
-      // Fetch user institutes
-      const institutes = await fetchUserInstitutes(data.user.id);
-      
-      const mappedUser = mapUserData(data.user, institutes);
-      console.log('User mapped successfully:', mappedUser);
-      setUser(mappedUser);
+      try {
+        const institutes = await fetchUserInstitutes(data.user.id);
+        const mappedUser = mapUserData(data.user, institutes);
+        console.log('User mapped successfully:', mappedUser);
+        setUser(mappedUser);
+      } catch (instituteError) {
+        console.error('Failed to fetch user institutes after login:', instituteError);
+        // If we can't fetch institutes, still set the user but with empty institutes
+        const mappedUser = mapUserData(data.user, []);
+        setUser(mappedUser);
+      }
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -66,7 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = async () => {
     console.log('Logging out user...');
     
-    // Call server logout to clear cookie and stored token
+    // Call server logout to clear HttpOnly cookie
     await logoutUser();
     
     // Clear client state
@@ -122,12 +127,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        console.log('Checking authentication on page load...');
+        console.log('Checking authentication on page load via HttpOnly cookie...');
         const data = await validateToken();
-        const institutes = await fetchUserInstitutes(data.id);
-        const mappedUser = mapUserData(data, institutes);
-        setUser(mappedUser);
-        console.log('Authentication check successful, user restored');
+        
+        try {
+          const institutes = await fetchUserInstitutes(data.id);
+          const mappedUser = mapUserData(data, institutes);
+          setUser(mappedUser);
+          console.log('Authentication check successful, user restored');
+        } catch (instituteError) {
+          console.warn('Could not fetch institutes during auth check:', instituteError);
+          // Set user without institutes if institutes fetch fails
+          const mappedUser = mapUserData(data, []);
+          setUser(mappedUser);
+        }
       } catch (error) {
         console.log('No valid authentication found:', error);
         // User is not authenticated, stay on login page

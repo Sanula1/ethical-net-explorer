@@ -65,20 +65,23 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
   const response = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',
     headers: getApiHeaders(),
-    credentials: 'include', // Include cookies in request
+    credentials: 'include', // CRITICAL: Include credentials to receive HttpOnly cookie
     body: JSON.stringify(credentials),
   });
 
   if (!response.ok) {
-    console.error('Login failed:', response.status, response.statusText);
-    throw new Error(`Login failed with status: ${response.status}`);
+    const errorData = await response.json().catch(() => ({
+      message: `Login failed with status: ${response.status}`,
+      statusCode: response.status,
+      error: response.statusText
+    }));
+    
+    console.error('Login failed:', errorData);
+    throw new Error(errorData.message || `Login failed with status: ${response.status}`);
   }
 
   const loginData = await response.json();
-  console.log('Login successful, received data:', loginData);
-  
-  // With HttpOnly cookies, we don't store the token manually
-  // The server sets the cookie automatically
+  console.log('Login successful, cookie should be set by server:', loginData);
   
   return loginData;
 };
@@ -115,33 +118,37 @@ export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> 
   }
 
   try {
-    console.log(`Fetching institutes for user ${userId}...`);
+    console.log(`Fetching institutes for user ${userId} with HttpOnly cookie...`);
     const baseUrl = getBaseUrl();
     
     const response = await fetch(`${baseUrl}/users/${userId}/institutes`, {
       method: 'GET',
       headers: getApiHeaders(),
-      credentials: 'include' // Include cookies in request - HttpOnly cookie is sent automatically
+      credentials: 'include' // CRITICAL: Include credentials to send HttpOnly cookie
     });
 
     if (response.ok) {
       const contentType = response.headers.get('Content-Type');
       if (contentType && contentType.includes('application/json')) {
         const institutes = await response.json();
-        console.log('Fetched institutes:', institutes);
+        console.log('Fetched institutes successfully:', institutes);
         return Array.isArray(institutes) ? institutes : [];
       } else {
         console.error('Non-JSON response for institutes:', await response.text());
       }
     } else {
-      console.error('Failed to fetch institutes:', response.status, response.statusText);
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Failed to fetch institutes:', response.status, response.statusText, errorData);
       
       if (response.status === 401) {
-        console.warn('Unauthorized - HttpOnly cookie may be invalid or expired');
+        console.warn('Unauthorized when fetching institutes - HttpOnly cookie may be invalid, expired, or not being sent properly');
+        // Don't throw here, let the auth context handle the error
+        throw new Error('Authentication failed - please login again');
       }
     }
   } catch (error) {
     console.error('Error fetching user institutes:', error);
+    throw error;
   }
   return [];
 };
@@ -156,37 +163,41 @@ export const validateToken = async () => {
   
   for (const endpoint of endpoints) {
     try {
+      console.log(`Trying validation endpoint: ${baseUrl}${endpoint}`);
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'GET',
         headers: getApiHeaders(),
-        credentials: 'include' // Include cookies - HttpOnly cookie sent automatically
+        credentials: 'include' // CRITICAL: Include credentials to send HttpOnly cookie
       });
 
       if (response.ok) {
         const userData = await response.json();
         console.log('Session validation successful:', userData);
         return userData;
+      } else {
+        console.log(`Endpoint ${endpoint} failed with status: ${response.status}`);
       }
     } catch (error) {
-      console.log(`Endpoint ${endpoint} failed:`, error);
+      console.log(`Endpoint ${endpoint} failed with error:`, error);
     }
   }
   
-  throw new Error('Session validation failed - no valid endpoint found');
+  throw new Error('Session validation failed - no valid endpoint found or session expired');
 };
 
 export const logoutUser = async () => {
   try {
     const baseUrl = getBaseUrl();
     
+    console.log('Attempting server logout to clear HttpOnly cookie...');
     const response = await fetch(`${baseUrl}/auth/logout`, {
       method: 'POST',
       headers: getApiHeaders(),
-      credentials: 'include' // Include cookies in request
+      credentials: 'include' // CRITICAL: Include credentials to clear HttpOnly cookie
     });
     
     if (response.ok) {
-      console.log('Server logout successful - HttpOnly cookie cleared');
+      console.log('Server logout successful - HttpOnly cookie should be cleared');
     } else {
       console.warn('Server logout failed, but proceeding with client logout');
     }
@@ -194,6 +205,5 @@ export const logoutUser = async () => {
     console.error('Error during server logout:', error);
   }
   
-  // No need to clear localStorage since we're not storing tokens manually
   console.log('Logout complete');
 };
