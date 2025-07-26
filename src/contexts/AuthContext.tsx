@@ -49,18 +49,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         id: institute.id,
         name: institute.name,
         code: institute.code,
-        email: institute.email || '',
-        phone: institute.phone || '',
-        address: institute.address || '',
-        city: institute.city || '',
-        state: institute.state || '',
-        country: institute.country || '',
-        pinCode: institute.pinCode || '',
         description: '', // Add default value for required field
-        isActive: institute.isActive,
-        createdAt: institute.createdAt,
-        updatedAt: institute.updatedAt,
-        imageUrl: institute.imageUrl
+        isActive: institute.isActive
       }));
     } catch (error) {
       console.error('Error fetching user institutes:', error);
