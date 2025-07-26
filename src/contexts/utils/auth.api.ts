@@ -1,4 +1,3 @@
-
 import { LoginCredentials, ApiResponse, Institute } from '../types/auth.types';
 
 export const getBaseUrl = () => {
@@ -10,8 +9,19 @@ export const getBaseUrl2 = () => {
 };
 
 export const getApiHeaders = () => {
+  const token = localStorage.getItem('access_token');
+  if (!token) {
+    console.warn('No access token found for API headers');
+    return {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    };
+  }
+  
+  console.log('Adding bearer token to API headers');
   return {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
     'ngrok-skip-browser-warning': 'true'
   };
 };
@@ -64,31 +74,42 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
   
   const response = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',
-    headers: getApiHeaders(),
-    credentials: 'include', // CRITICAL: Include credentials to receive HttpOnly cookie
+    headers: {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    },
     body: JSON.stringify(credentials),
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({
-      message: `Login failed with status: ${response.status}`,
-      statusCode: response.status,
-      error: response.statusText
-    }));
-    
-    console.error('Login failed:', errorData);
-    throw new Error(errorData.message || `Login failed with status: ${response.status}`);
+    console.error('Login failed:', response.status, response.statusText);
+    throw new Error(`Login failed with status: ${response.status}`);
   }
 
   const loginData = await response.json();
-  console.log('Login successful, cookie should be set by server:', loginData);
+  console.log('Login successful, received data:', loginData);
   
+  // Handle JWT token response structure
+  if (loginData.access_token) {
+    console.log('JWT access token received:', loginData.access_token);
+    
+    // Store the JWT token securely
+    localStorage.setItem('access_token', loginData.access_token);
+    
+    if (loginData.refresh_token) {
+      localStorage.setItem('refresh_token', loginData.refresh_token);
+      console.log('Refresh token stored');
+    }
+  } else {
+    console.warn('No access_token in login response');
+  }
+
   return loginData;
 };
 
-export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> => {
+export const fetchUserInstitutes = async (userId: string, accessToken: string): Promise<Institute[]> => {
   // Mock organizations for Organization Manager
-  if (userId === 'org-001') {
+  if (userId === 'org-001' || accessToken === 'mock-org-manager-token') {
     const mockOrganizations = [
       {
         id: 'org-1',
@@ -118,92 +139,59 @@ export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> 
   }
 
   try {
-    console.log(`Fetching institutes for user ${userId} with HttpOnly cookie...`);
+    console.log(`Fetching institutes for user ${userId}...`);
     const baseUrl = getBaseUrl();
+    const headers = {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    };
+    
+    console.log('Request headers for institutes:', headers);
     
     const response = await fetch(`${baseUrl}/users/${userId}/institutes`, {
-      method: 'GET',
-      headers: getApiHeaders(),
-      credentials: 'include' // CRITICAL: Include credentials to send HttpOnly cookie
+      headers
     });
 
     if (response.ok) {
       const contentType = response.headers.get('Content-Type');
       if (contentType && contentType.includes('application/json')) {
         const institutes = await response.json();
-        console.log('Fetched institutes successfully:', institutes);
+        console.log('Fetched institutes:', institutes);
         return Array.isArray(institutes) ? institutes : [];
       } else {
         console.error('Non-JSON response for institutes:', await response.text());
       }
     } else {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Failed to fetch institutes:', response.status, response.statusText, errorData);
+      console.error('Failed to fetch institutes:', response.status, response.statusText);
       
       if (response.status === 401) {
-        console.warn('Unauthorized when fetching institutes - HttpOnly cookie may be invalid, expired, or not being sent properly');
-        // Don't throw here, let the auth context handle the error
-        throw new Error('Authentication failed - please login again');
+        console.warn('Unauthorized - token may be invalid');
       }
     }
   } catch (error) {
     console.error('Error fetching user institutes:', error);
-    throw error;
   }
   return [];
 };
 
 export const validateToken = async () => {
   const baseUrl = getBaseUrl();
+  const headers = getApiHeaders();
   
-  console.log('Validating session via HttpOnly cookie...');
+  console.log('Validating token with headers:', headers);
   
-  // Try multiple endpoints since /auth/me might not exist
-  const endpoints = ['/auth/me', '/users/me', '/auth/validate'];
-  
-  for (const endpoint of endpoints) {
-    try {
-      console.log(`Trying validation endpoint: ${baseUrl}${endpoint}`);
-      const response = await fetch(`${baseUrl}${endpoint}`, {
-        method: 'GET',
-        headers: getApiHeaders(),
-        credentials: 'include' // CRITICAL: Include credentials to send HttpOnly cookie
-      });
+  const response = await fetch(`${baseUrl}/auth/me`, {
+    method: 'GET',
+    headers,
+  });
 
-      if (response.ok) {
-        const userData = await response.json();
-        console.log('Session validation successful:', userData);
-        return userData;
-      } else {
-        console.log(`Endpoint ${endpoint} failed with status: ${response.status}`);
-      }
-    } catch (error) {
-      console.log(`Endpoint ${endpoint} failed with error:`, error);
-    }
+  if (!response.ok) {
+    console.error('Token validation failed:', response.status, response.statusText);
+    throw new Error(`Token validation failed with status: ${response.status}`);
   }
-  
-  throw new Error('Session validation failed - no valid endpoint found or session expired');
-};
 
-export const logoutUser = async () => {
-  try {
-    const baseUrl = getBaseUrl();
-    
-    console.log('Attempting server logout to clear HttpOnly cookie...');
-    const response = await fetch(`${baseUrl}/auth/logout`, {
-      method: 'POST',
-      headers: getApiHeaders(),
-      credentials: 'include' // CRITICAL: Include credentials to clear HttpOnly cookie
-    });
-    
-    if (response.ok) {
-      console.log('Server logout successful - HttpOnly cookie should be cleared');
-    } else {
-      console.warn('Server logout failed, but proceeding with client logout');
-    }
-  } catch (error) {
-    console.error('Error during server logout:', error);
-  }
-  
-  console.log('Logout complete');
+  const userData = await response.json();
+  console.log('Token validation successful:', userData);
+  return userData;
 };

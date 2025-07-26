@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { 
   User, 
@@ -9,7 +10,7 @@ import {
   LoginCredentials, 
   AuthContextType 
 } from './types/auth.types';
-import { loginUser, fetchUserInstitutes, validateToken, logoutUser } from './utils/auth.api';
+import { loginUser, fetchUserInstitutes, validateToken } from './utils/auth.api';
 import { mapUserData } from './utils/user.utils';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,20 +47,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const data = await loginUser(credentials);
       console.log('Login response received:', data);
 
-      // The server should have set an HttpOnly cookie automatically
-      // Now we need to fetch user institutes using that cookie
-      
-      try {
-        const institutes = await fetchUserInstitutes(data.user.id);
-        const mappedUser = mapUserData(data.user, institutes);
-        console.log('User mapped successfully:', mappedUser);
-        setUser(mappedUser);
-      } catch (instituteError) {
-        console.error('Failed to fetch user institutes after login:', instituteError);
-        // If we can't fetch institutes, still set the user but with empty institutes
-        const mappedUser = mapUserData(data.user, []);
-        setUser(mappedUser);
+      // Handle JWT token structure
+      if (data.access_token) {
+        console.log('Storing JWT access token');
+        localStorage.setItem('access_token', data.access_token);
+        
+        if (data.refresh_token) {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
+      } else {
+        console.error('No access_token in login response');
+        throw new Error('Invalid login response - no access token received');
       }
+
+      // Fetch user institutes with the new token
+      const institutes = await fetchUserInstitutes(data.user.id, data.access_token);
+      
+      const mappedUser = mapUserData(data.user, institutes);
+      console.log('User mapped successfully:', mappedUser);
+      setUser(mappedUser);
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -68,14 +74,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const logout = async () => {
+  const logout = () => {
     console.log('Logging out user...');
-    
-    // Call server logout to clear HttpOnly cookie
-    await logoutUser();
-    
-    // Clear client state
     setUser(null);
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     setSelectedInstituteState(null);
     setSelectedClassState(null);
     setSelectedSubjectState(null);
@@ -125,31 +128,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        console.log('Checking authentication on page load via HttpOnly cookie...');
-        const data = await validateToken();
-        
+    const checkToken = async () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
         try {
-          const institutes = await fetchUserInstitutes(data.id);
+          console.log('Validating existing token...');
+          const data = await validateToken();
+          const institutes = await fetchUserInstitutes(data.id, token);
           const mappedUser = mapUserData(data, institutes);
           setUser(mappedUser);
-          console.log('Authentication check successful, user restored');
-        } catch (instituteError) {
-          console.warn('Could not fetch institutes during auth check:', instituteError);
-          // Set user without institutes if institutes fetch fails
-          const mappedUser = mapUserData(data, []);
-          setUser(mappedUser);
+          console.log('Token validation successful, user restored');
+        } catch (error) {
+          console.error('Error validating token:', error);
+          console.log('Clearing invalid token');
+          logout();
         }
-      } catch (error) {
-        console.log('No valid authentication found:', error);
-        // User is not authenticated, stay on login page
-      } finally {
-        setIsInitialized(true);
+      } else {
+        console.log('No token found in localStorage');
       }
+      setIsInitialized(true);
     };
 
-    checkAuth();
+    checkToken();
   }, []);
 
   const value = {
@@ -189,7 +189,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Export the AuthContext for components that need direct access
+// Export AuthContext for direct access if needed
 export { AuthContext };
 
 // Re-export types for backward compatibility
