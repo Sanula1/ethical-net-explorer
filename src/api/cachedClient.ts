@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 import { apiCache } from '@/utils/apiCache';
 
@@ -87,7 +86,6 @@ class CachedApiClient {
 
     try {
       let cachedData: T | null = null;
-      let isStale = false;
 
       // Always check cache first unless forcing refresh
       if (!forceRefresh) {
@@ -96,16 +94,11 @@ class CachedApiClient {
         if (cachedData !== null) {
           console.log(`Cache HIT for ${endpoint} - returning cached data`);
           
-          // If using stale-while-revalidate, check if data is getting old
+          // If using stale-while-revalidate, trigger background refresh for frequently accessed data
           if (useStaleWhileRevalidate) {
-            const cacheAge = await this.getCacheAge(endpoint, params);
-            isStale = cacheAge > (ttl * 0.8 * 60 * 1000); // Consider stale at 80% of TTL
-            
-            if (isStale) {
-              console.log(`Data is stale for ${endpoint}, triggering background refresh`);
-              // Start background refresh but don't wait for it
-              this.backgroundRefresh(endpoint, params, ttl, requestKey);
-            }
+            console.log(`Triggering background refresh for ${endpoint}`);
+            // Start background refresh but don't wait for it
+            this.backgroundRefresh(endpoint, params, ttl, requestKey);
           }
           
           return cachedData;
@@ -122,22 +115,6 @@ class CachedApiClient {
       console.warn('Cache operation failed, making direct API call:', cacheError);
       return this.makeDirectApiCall(endpoint, params, requestKey);
     }
-  }
-
-  private async getCacheAge(endpoint: string, params?: Record<string, any>): Promise<number> {
-    try {
-      const cacheKey = apiCache['generateCacheKey'](endpoint, params);
-      const entry = await apiCache['getIndexedDBCache'] || 
-                   apiCache['getLocalStorageCache'] ||
-                   (() => null);
-      
-      if (entry && entry.timestamp) {
-        return Date.now() - entry.timestamp;
-      }
-    } catch {
-      // Ignore errors, assume data is fresh
-    }
-    return 0;
   }
 
   private async backgroundRefresh(
