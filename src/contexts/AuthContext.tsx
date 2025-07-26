@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { 
   User, 
@@ -12,6 +13,7 @@ import {
 import { loginUser, validateToken } from './utils/auth.api';
 import { mapUserData } from './utils/user.utils';
 import { instituteApi, Institute as ApiInstitute } from '@/api/institute.api';
+import { cachedApiClient } from '@/api/cachedClient';
 import { apiCache } from '@/utils/apiCache';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,7 +45,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchUserInstitutes = async (userId: string, forceRefresh = false): Promise<Institute[]> => {
     try {
-      const apiInstitutes = await instituteApi.getUserInstitutes(userId, forceRefresh);
+      console.log('Fetching user institutes with caching:', { userId, forceRefresh });
+      
+      // Use cached API client which handles proper base URL
+      const apiInstitutes = await cachedApiClient.get<ApiInstitute[]>(
+        `/users/${userId}/institutes`, 
+        undefined, 
+        { 
+          forceRefresh,
+          ttl: 60 // Cache for 1 hour since institutes don't change often
+        }
+      );
+      
       // Map ApiInstitute to AuthContext Institute type
       return apiInstitutes.map((institute: ApiInstitute): Institute => ({
         id: institute.id,
@@ -65,8 +78,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const data = await loginUser(credentials);
       console.log('Login response received:', data);
 
-      // Fetch user institutes with caching
-      const institutes = await fetchUserInstitutes(data.user.id);
+      // Fetch user institutes with caching - don't force refresh on login
+      const institutes = await fetchUserInstitutes(data.user.id, false);
       
       const mappedUser = mapUserData(data.user, institutes);
       console.log('User mapped successfully:', mappedUser);
@@ -149,7 +162,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // If there's a selected institute, refresh its data too
       if (currentInstituteId) {
-        await instituteApi.refreshInstituteData(user.id, currentInstituteId);
+        // Force refresh institute-specific data
+        await cachedApiClient.get(
+          `/institute-classes`,
+          { instituteId: currentInstituteId },
+          { forceRefresh: true, ttl: 30 }
+        );
       }
       
       console.log('User data refreshed successfully');
@@ -165,7 +183,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         console.log('Validating existing token...');
         const data = await validateToken();
-        const institutes = await fetchUserInstitutes(data.id);
+        
+        // Don't force refresh on token validation - use cache if available
+        const institutes = await fetchUserInstitutes(data.id, false);
         const mappedUser = mapUserData(data, institutes);
         setUser(mappedUser);
         console.log('Token validation successful, user restored');

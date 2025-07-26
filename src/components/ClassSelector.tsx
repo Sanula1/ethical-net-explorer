@@ -93,8 +93,14 @@ const ClassSelector = () => {
   const fetchClassesByRole = async (forceRefresh = false) => {
     if (!currentInstituteId) return;
 
+    // If data is already loaded and we're not forcing refresh, don't fetch again
+    if (dataLoaded && !forceRefresh) {
+      console.log('Data already loaded, skipping fetch');
+      return;
+    }
+
     setIsLoading(true);
-    console.log('Loading classes data for user role:', user?.role, { forceRefresh });
+    console.log('Loading classes data for user role:', user?.role, { forceRefresh, dataLoaded });
     
     try {
       const userRole = (user?.role || 'Student') as UserRole;
@@ -113,12 +119,11 @@ const ClassSelector = () => {
         throw new Error('Unsupported user role for class selection');
       }
 
-      // Check cache first if not forcing refresh
+      // First check if we have cached data and we're not forcing refresh
       if (!forceRefresh) {
-        const hasCache = await cachedApiClient.hasCache(endpoint, params);
-        if (hasCache) {
-          console.log('Data found in cache, loading from cache...');
-          const cachedData = await cachedApiClient.get(endpoint, params, { ttl: 60 });
+        const cachedData = await cachedApiClient.getCachedOnly(endpoint, params);
+        if (cachedData) {
+          console.log('Using cached data for classes');
           processClassesData(cachedData, userRole);
           return;
         }
@@ -126,7 +131,7 @@ const ClassSelector = () => {
 
       console.log(`Making API call for ${endpoint}:`, params);
       
-      // Use cached API client which will handle caching
+      // Use cached API client which will handle caching and proper base URL
       const result = await cachedApiClient.get(endpoint, params, { 
         forceRefresh,
         ttl: 60 // Cache for 1 hour
@@ -307,8 +312,10 @@ const ClassSelector = () => {
     });
   };
 
+  // Load data when component mounts or institute changes
   useEffect(() => {
-    if (user && currentInstituteId) {
+    if (user && currentInstituteId && !dataLoaded) {
+      console.log('Loading classes on mount/institute change');
       fetchClassesByRole(false); // Never force refresh on mount
     }
   }, [user, currentInstituteId]);
@@ -381,10 +388,12 @@ const ClassSelector = () => {
   }
 
   const handleRefreshClick = () => {
+    console.log('Manual refresh requested');
     fetchClassesByRole(true);
   };
 
   const handleLoadDataClick = () => {
+    console.log('Manual load requested');
     fetchClassesByRole(false);
   };
 
@@ -568,7 +577,7 @@ const ClassSelector = () => {
       {!dataLoaded ? (
         <div className="text-center py-8 sm:py-12 px-4">
           <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm sm:text-base">
-            Click the refresh button above to load your classes
+            Click the load button to view your classes
           </p>
           <Button 
             onClick={handleLoadDataClick}

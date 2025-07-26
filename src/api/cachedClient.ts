@@ -25,6 +25,8 @@ class CachedApiClient {
   ): Promise<T> {
     const { forceRefresh = false, ttl = 30, skipCache = false } = options;
     
+    console.log(`Cache request for ${endpoint}:`, { params, forceRefresh, skipCache, ttl });
+    
     // Skip cache for certain endpoints or when explicitly requested
     if (skipCache) {
       console.log(`Skipping cache for ${endpoint}`);
@@ -39,10 +41,16 @@ class CachedApiClient {
     }
 
     try {
-      // Try to get from cache first
-      const cachedData = await apiCache.getCache<T>(endpoint, params, { forceRefresh, ttl });
-      if (cachedData && !forceRefresh) {
-        return cachedData;
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        const cachedData = await apiCache.getCache<T>(endpoint, params, { ttl });
+        if (cachedData !== null) {
+          console.log(`Cache HIT for ${endpoint} - returning cached data`);
+          return cachedData;
+        }
+        console.log(`Cache MISS for ${endpoint} - making API call`);
+      } else {
+        console.log(`Force refresh requested for ${endpoint} - skipping cache check`);
       }
 
       // Make API call and cache the result
@@ -51,6 +59,7 @@ class CachedApiClient {
       
       // Cache the response
       await apiCache.setCache(endpoint, data, params, ttl);
+      console.log(`Data cached for ${endpoint} with TTL ${ttl} minutes`);
       
       return data;
     } catch (cacheError) {
@@ -115,13 +124,31 @@ class CachedApiClient {
     return this.get<T>(endpoint, params, { forceRefresh: true });
   }
 
-  // Method to check if data exists in cache
+  // Method to check if data exists in cache WITHOUT making API call
   async hasCache(endpoint: string, params?: Record<string, any>): Promise<boolean> {
     try {
-      const cachedData = await apiCache.getCache(endpoint, params);
-      return cachedData !== null;
+      const cachedData = await apiCache.getCache(endpoint, params, { forceRefresh: false });
+      const hasData = cachedData !== null;
+      console.log(`Cache check for ${endpoint}:`, { hasData, params });
+      return hasData;
     } catch {
       return false;
+    }
+  }
+
+  // Method to get cached data WITHOUT making API call if not found
+  async getCachedOnly<T>(endpoint: string, params?: Record<string, any>): Promise<T | null> {
+    try {
+      const cachedData = await apiCache.getCache<T>(endpoint, params, { forceRefresh: false });
+      if (cachedData !== null) {
+        console.log(`Cached data found for ${endpoint}`);
+        return cachedData;
+      }
+      console.log(`No cached data for ${endpoint}`);
+      return null;
+    } catch (error) {
+      console.warn('Error getting cached data:', error);
+      return null;
     }
   }
 
