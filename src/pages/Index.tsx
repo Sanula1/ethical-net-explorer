@@ -1,344 +1,532 @@
-
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
-import { useToast } from "@/hooks/use-toast"
-import { loginUser, validateToken, fetchUserInstitutes } from '@/contexts/utils/auth.api';
-import { useAuth } from '@/contexts/AuthContext';
-import { Institute } from '@/contexts/types/auth.types';
+import React, { useState } from 'react';
+import { AuthProvider } from '@/contexts/AuthContext';
+import Sidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
+import Dashboard from '@/components/Dashboard';
+import Users from '@/components/Users';
+import Students from '@/components/Students';
+import Teachers from '@/components/Teachers';
+import Parents from '@/components/Parents';
+import Grades from '@/components/Grades';
+import Classes from '@/components/Classes';
+import Subjects from '@/components/Subjects';
+import Institutes from '@/components/Institutes';
+import Grading from '@/components/Grading';
+import Attendance from '@/components/Attendance';
+import AttendanceMarking from '@/components/AttendanceMarking';
+import AttendanceMarkers from '@/components/AttendanceMarkers';
+import QRAttendance from '@/components/QRAttendance';
+import Lectures from '@/components/Lectures';
+import LiveLectures from '@/components/LiveLectures';
+import Homework from '@/components/Homework';
+import Exams from '@/components/Exams';
+import Results from '@/components/Results';
+import Profile from '@/components/Profile';
+import InstituteDetails from '@/components/InstituteDetails';
+import Login from '@/components/Login';
+import InstituteSelector from '@/components/InstituteSelector';
+import ClassSelector from '@/components/ClassSelector';
+import SubjectSelector from '@/components/SubjectSelector';
+import ParentChildrenSelector from '@/components/ParentChildrenSelector';
+import Organizations from '@/components/Organizations';
+import Gallery from '@/components/Gallery';
 import Settings from '@/components/Settings';
+import Appearance from '@/components/Appearance';
+import OrganizationHeader from '@/components/OrganizationHeader';
 import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
-import { Organization } from '@/api/organization.api';
-import { apiClient } from '@/api/client';
 
-interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  user: any;
-}
+// Create a separate component that uses the auth hook
+import { useAuth } from '@/contexts/AuthContext';
 
-const Index = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoginLoading, setIsLoginLoading] = useState(false);
-  const [currentView, setCurrentView] = useState<'login' | 'settings' | 'institute-selector' | 'organization-login' | 'organization-selector' | 'organization-dashboard' | 'create-organization'>('login');
-  const { user, login, logout } = useAuth();
-  const [selectedInstitute, setSelectedInstitute] = useState<Institute | null>(null);
-  const [institutes, setInstitutes] = useState<Institute[]>([]);
-  const navigate = useNavigate();
-  const [organizationLoginResponse, setOrganizationLoginResponse] = useState<any>(null);
-  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
+const AppContent = () => {
+  const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, setSelectedOrganization } = useAuth();
+  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [organizationLoginData, setOrganizationLoginData] = useState<any>(null);
+  const [showCreateOrgForm, setShowCreateOrgForm] = useState(false);
 
-  useEffect(() => {
-    const accessToken = localStorage.getItem('access_token');
-    if (accessToken) {
-      validateAuthToken(accessToken);
-    }
-  }, []);
-
-  const validateAuthToken = async (token: string) => {
-    try {
-      const userData = await validateToken();
-      
-      // Fetch user institutes after successful validation
-      if (userData?.id && token) {
-        const userInstitutes = await fetchUserInstitutes(userData.id, token);
-        setInstitutes(userInstitutes);
-        
-        // If user has institutes, navigate to institute selector
-        if (userInstitutes.length > 0) {
-          setCurrentView('institute-selector');
-        } else {
-          toast({
-            title: "Info",
-            description: "No institutes found. Please contact your administrator.",
-          });
-        }
-      } else {
-        console.warn('User ID or token missing after validation');
-      }
-      
-      navigate('/');
-    } catch (error: any) {
-      console.error('Token validation failed:', error.message);
-      logout();
-      navigate('/');
-    }
+  const handleMenuClick = () => {
+    setIsSidebarOpen(!isSidebarOpen);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoginLoading(true);
-    try {
-      await login({ email, password });
-
-      // Fetch user institutes after successful login
-      const accessToken = localStorage.getItem('access_token');
-      if (user?.id && accessToken) {
-        const userInstitutes = await fetchUserInstitutes(user.id, accessToken);
-        setInstitutes(userInstitutes);
-        
-        // If user has institutes, navigate to institute selector
-        if (userInstitutes.length > 0) {
-          setCurrentView('institute-selector');
-        } else {
-          toast({
-            title: "Info",
-            description: "No institutes found. Please contact your administrator.",
-          });
-        }
-      } else {
-        console.warn('User ID or token missing after login');
-      }
-
-      toast({
-        title: "Success",
-        description: "Login successful!",
-      });
-      navigate('/');
-    } catch (error: any) {
-      console.error('Login failed:', error.message);
-      toast({
-        title: "Error",
-        description: "Invalid credentials. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoginLoading(false);
-    }
-  };
-
-  const handleInstituteSelect = (institute: Institute) => {
-    setSelectedInstitute(institute);
-    navigate('/dashboard');
+  const handleSidebarClose = () => {
+    setIsSidebarOpen(false);
   };
 
   const handleOrganizationLogin = (loginResponse: any) => {
-    setOrganizationLoginResponse(loginResponse);
-    setCurrentView('organization-selector');
+    console.log('Organization login successful:', loginResponse);
+    setOrganizationLoginData(loginResponse);
+    setCurrentPage('organization-selector');
   };
 
-  const handleOrganizationSelect = (organization: Organization) => {
+  const handleOrganizationSelect = (organization: any) => {
+    console.log('Organization selected:', organization);
     setSelectedOrganization(organization);
-    // Organization API calls will automatically use getBaseUrl2()
-    setCurrentView('organization-dashboard');
-  };
-
-  const handleBackToLogin = () => {
-    // Reset to main login and use baseUrl for institute API calls
-    apiClient.setUseBaseUrl2(false);
-    setCurrentView('login');
-    setSelectedInstitute(null);
-    setSelectedOrganization(null);
-    setOrganizationLoginResponse(null);
+    
+    // Switch to using baseUrl2 for organization-specific API calls
+    import('@/api/client').then(({ apiClient }) => {
+      apiClient.setUseBaseUrl2(true);
+    });
+    
+    setCurrentPage('dashboard');
   };
 
   const handleBackToOrganizationSelector = () => {
-    setCurrentView('organization-selector');
-    setSelectedOrganization(null);
+    setCurrentPage('organization-selector');
   };
 
-  const handleBackToOrganizationLogin = () => {
-    setCurrentView('organization-login');
-    setOrganizationLoginResponse(null);
+  const handleBackToMain = () => {
+    setOrganizationLoginData(null);
+    
+    // Switch back to using baseUrl for main API calls
+    import('@/api/client').then(({ apiClient }) => {
+      apiClient.setUseBaseUrl2(false);
+    });
+    
+    setCurrentPage('dashboard');
   };
 
   const handleCreateOrganization = () => {
-    setCurrentView('create-organization');
+    setShowCreateOrgForm(true);
   };
 
-  const handleOrganizationCreateSuccess = (organization: Organization) => {
-    toast({
-      title: "Success",
-      description: `${organization.name} created successfully.`,
-    });
-    setCurrentView('organization-selector');
+  const handleCreateOrganizationSuccess = (organization: any) => {
+    console.log('Organization created successfully:', organization);
+    setShowCreateOrgForm(false);
+    setCurrentPage('organization-selector');
   };
 
-  const renderLoginView = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Login</CardTitle>
-          <CardDescription>Enter your credentials to access the platform</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoginLoading}>
-              {isLoginLoading ? "Logging in..." : "Sign In"}
-            </Button>
-          </form>
-          <div className="mt-4 text-center">
-            <Button variant="link" onClick={() => setCurrentView('organization-login')}>
-              Login as Organization
-            </Button>
-          </div>
-          <div className="mt-4 text-center">
-            <Button variant="link" onClick={() => setCurrentView('settings')}>
-              Settings
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const handleCreateOrganizationCancel = () => {
+    setShowCreateOrgForm(false);
+  };
 
-  const renderSettingsView = () => (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        <Button variant="ghost" onClick={() => setCurrentView('login')} className="mb-4">
-          Back to Login
-        </Button>
-        <Settings />
-      </div>
-    </div>
-  );
+  const renderComponent = () => {
+    // Handle organization-related pages
+    if (currentPage === 'organizations') {
+      if (showCreateOrgForm) {
+        return (
+          <CreateOrganizationForm
+            onSuccess={handleCreateOrganizationSuccess}
+            onCancel={handleCreateOrganizationCancel}
+          />
+        );
+      }
+      
+      if (!organizationLoginData) {
+        return (
+          <OrganizationLogin
+            onLogin={handleOrganizationLogin}
+            onBack={handleBackToMain}
+          />
+        );
+      }
+      
+      if (!selectedOrganization) {
+        return (
+          <OrganizationSelector
+            onOrganizationSelect={handleOrganizationSelect}
+            onBack={handleBackToMain}
+            onCreateOrganization={handleCreateOrganization}
+            userPermissions={organizationLoginData?.permissions}
+          />
+        );
+      }
+    }
 
-  const renderInstituteSelectorView = () => (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Select Institute</h1>
-          <p className="text-gray-600 dark:text-gray-400">Choose an institute to continue</p>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {institutes.map((institute) => (
-            <Card
-              key={institute.id}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleInstituteSelect(institute)}
-            >
-              <CardHeader>
-                <CardTitle className="text-lg">{institute.name}</CardTitle>
-                <CardDescription>{institute.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Code: {institute.code}
-                  </p>
-                  <div className="flex justify-between items-center">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      institute.isActive 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {institute.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        
-        {institutes.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-600 dark:text-gray-400">No institutes found</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    if (currentPage === 'organization-selector') {
+      return (
+        <OrganizationSelector
+          onOrganizationSelect={handleOrganizationSelect}
+          onBack={handleBackToMain}
+          onCreateOrganization={handleCreateOrganization}
+          userPermissions={organizationLoginData?.permissions}
+        />
+      );
+    }
 
-  const renderOrganizationLoginView = () => (
-    <OrganizationLogin
-      onLogin={handleOrganizationLogin}
-      onBack={handleBackToLogin}
-    />
-  );
+    // System Admin doesn't need institute/class/subject selection flow
+    if (user?.role === 'SystemAdmin') {
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'users':
+          return <Users />;
+        case 'students':
+          return <Students />;
+        case 'teachers':
+          return <Teachers />;
+        case 'parents':
+          return <Parents />;
+        case 'grades':
+          return <Grades />;
+        case 'classes':
+          return <Classes apiLevel="institute" />;
+        case 'subjects':
+          return <Subjects apiLevel="institute" />;
+        case 'institutes':
+          return <Institutes />;
+        case 'grading':
+        case 'grades-table':
+        case 'create-grade':
+        case 'assign-grade-classes':
+        case 'view-grade-classes':
+          return <Grading />;
+        case 'attendance':
+          return <Attendance />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+        case 'attendance-markers':
+          return <AttendanceMarkers />;
+        case 'qr-attendance':
+          return <QRAttendance />;
+        case 'lectures':
+          return <Lectures />;
+        case 'live-lectures':
+          return <LiveLectures />;
+        case 'homework':
+          return <Homework />;
+        case 'exams':
+          return <Exams />;
+        case 'results':
+          return <Results />;
+        case 'profile':
+          return <Profile />;
+        case 'institute-details':
+          return <InstituteDetails />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
+    }
 
-  const renderOrganizationSelectorView = () => (
-    <OrganizationSelector
-      onOrganizationSelect={handleOrganizationSelect}
-      onBack={handleBackToOrganizationLogin}
-      onCreateOrganization={handleCreateOrganization}
-    />
-  );
+    // For Organization Manager - show organizations list or organization-specific dashboard
+    if (user?.role === 'OrganizationManager') {
+      if (!selectedOrganization && currentPage !== 'organizations') {
+        return <Organizations />;
+      }
 
-  const renderCreateOrganizationForm = () => (
-    <CreateOrganizationForm
-      onSuccess={handleOrganizationCreateSuccess}
-      onCancel={handleBackToOrganizationSelector}
-    />
-  );
+      // Add Organization Header for specific sections
+      const shouldShowOrgHeader = ['dashboard', 'students', 'lectures', 'gallery'].includes(currentPage);
+      
+      const getPageTitle = () => {
+        switch (currentPage) {
+          case 'dashboard': return 'Dashboard';
+          case 'students': return 'Students';
+          case 'lectures': return 'Lectures';
+          case 'gallery': return 'Gallery';
+          default: return 'Management';
+        }
+      };
 
-  const renderOrganizationDashboard = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Organization Dashboard</CardTitle>
-          <CardDescription>Welcome to the organization dashboard</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {selectedOrganization && (
-            <>
-              <p>You are logged in as organization: {selectedOrganization.name}</p>
-              <Button onClick={handleBackToOrganizationSelector}>Back to Organization Selector</Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+      const renderWithHeader = (component: React.ReactNode) => (
+        <>
+          {shouldShowOrgHeader && <OrganizationHeader title={getPageTitle()} />}
+          {component}
+        </>
+      );
 
-  let view;
-  switch (currentView) {
-    case 'login':
-      view = renderLoginView();
-      break;
-    case 'settings':
-      view = renderSettingsView();
-      break;
-    case 'institute-selector':
-      view = renderInstituteSelectorView();
-      break;
-    case 'organization-login':
-      view = renderOrganizationLoginView();
-      break;
-    case 'organization-selector':
-      view = renderOrganizationSelectorView();
-      break;
-    case 'create-organization':
-      view = renderCreateOrganizationForm();
-      break;
-    case 'organization-dashboard':
-      view = renderOrganizationDashboard();
-      break;
-    default:
-      view = renderLoginView();
+      switch (currentPage) {
+        case 'organizations':
+          return <Organizations />;
+        case 'dashboard':
+          return renderWithHeader(<Dashboard />);
+        case 'students':
+          return renderWithHeader(<Students />);
+        case 'lectures':
+          return renderWithHeader(<Lectures />);
+        case 'gallery':
+          return renderWithHeader(<Gallery />);
+        case 'appearance':
+          return <Appearance />;
+        case 'profile':
+          return <Profile />;
+        case 'settings':
+          return <Settings />;
+        default:
+          return <Dashboard />;
+      }
+    }
+
+    // For Student role - simplified interface
+    if (user?.role === 'Student') {
+      if (!selectedInstitute && user.institutes.length === 1) {
+        // Auto-select the only institute available
+        // This should be handled by the auth context
+      }
+      
+      if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
+        return <InstituteSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'attendance':
+          return <Attendance />;
+        case 'lectures':
+          return <Lectures />;
+        case 'homework':
+          return <Homework />;
+        case 'exams':
+          return <Exams />;
+        case 'results':
+          return <Results />;
+        case 'profile':
+          return <Profile />;
+        case 'select-institute':
+          return <InstituteSelector />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
+    }
+
+    // For Parent role
+    if (user?.role === 'Parent') {
+      if (currentPage === 'parent-children') {
+        return <ParentChildrenSelector />;
+      }
+
+      if (!selectedChild && currentPage !== 'parent-children' && currentPage !== 'profile') {
+        return <ParentChildrenSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'attendance':
+          return <Attendance />;
+        case 'homework':
+          return <Homework />;
+        case 'results':
+          return <Results />;
+        case 'exams':
+          return <Exams />;
+        case 'profile':
+          return <Profile />;
+        case 'parent-children':
+          return <ParentChildrenSelector />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <ParentChildrenSelector />;
+      }
+    }
+
+    // For Teacher role
+    if (user?.role === 'Teacher') {
+      if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
+        return <InstituteSelector />;
+      }
+
+      if (currentPage === 'select-class') {
+        return <ClassSelector />;
+      }
+
+      if (currentPage === 'select-subject') {
+        return <SubjectSelector />;
+      }
+
+      const classRequiredPages = ['attendance-marking', 'grading'];
+      if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
+        return <ClassSelector />;
+      }
+
+      const subjectRequiredPages = ['lectures'];
+      if (selectedClass && !selectedSubject && subjectRequiredPages.includes(currentPage)) {
+        return <SubjectSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'students':
+          return <Students />;
+        case 'parents':
+          return <Parents />;
+        case 'classes':
+          return <Classes apiLevel="institute" />;
+        case 'subjects':
+          return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
+        case 'select-institute':
+          return <InstituteSelector />;
+        case 'grading':
+        case 'grades-table':
+        case 'create-grade':
+        case 'assign-grade-classes':
+        case 'view-grade-classes':
+          return <Grading />;
+        case 'attendance':
+          return <Attendance />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+        case 'lectures':
+          return <Lectures />;
+        case 'homework':
+          return <Homework />;
+        case 'exams':
+          return <Exams />;
+        case 'results':
+          return <Results />;
+        case 'profile':
+          return <Profile />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
+    }
+
+    // For AttendanceMarker role
+    if (user?.role === 'AttendanceMarker') {
+      if (!selectedInstitute && currentPage !== 'select-institute') {
+        return <InstituteSelector />;
+      }
+
+      if (!selectedClass && currentPage !== 'select-class') {
+        return <ClassSelector />;
+      }
+
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+        case 'qr-attendance':
+          return <QRAttendance />;
+        case 'profile':
+          return <Profile />;
+        case 'select-institute':
+          return <InstituteSelector />;
+        case 'select-class':
+          return <ClassSelector />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+      }
+    }
+
+    // For InstituteAdmin and other roles - full access within their institute
+    if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
+      return <InstituteSelector />;
+    }
+
+    if (currentPage === 'select-class') {
+      return <ClassSelector />;
+    }
+
+    if (currentPage === 'select-subject') {
+      return <SubjectSelector />;
+    }
+
+    const classRequiredPages = ['attendance-marking', 'grading'];
+    if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
+      return <ClassSelector />;
+    }
+
+    const subjectRequiredPages = ['lectures'];
+    if (selectedClass && !selectedSubject && subjectRequiredPages.includes(currentPage)) {
+      return <SubjectSelector />;
+    }
+
+    switch (currentPage) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'users':
+        return <Users />;
+      case 'students':
+        return <Students />;
+      case 'teachers':
+        return <Teachers />;
+      case 'parents':
+        return <Parents />;
+      case 'grades':
+        return <Grades />;
+      case 'classes':
+        return <Classes apiLevel="institute" />;
+      case 'subjects':
+        return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
+      case 'institutes':
+        return <Institutes />;
+      case 'select-institute':
+        return <InstituteSelector />;
+      case 'grading':
+      case 'grades-table':
+      case 'create-grade':
+      case 'assign-grade-classes':
+      case 'view-grade-classes':
+        return <Grading />;
+      case 'attendance':
+        return <Attendance />;
+      case 'attendance-marking':
+        return <AttendanceMarking onNavigate={setCurrentPage} />;
+      case 'attendance-markers':
+        return <AttendanceMarkers />;
+      case 'qr-attendance':
+        return <QRAttendance />;
+      case 'lectures':
+        return <Lectures />;
+      case 'live-lectures':
+        return <LiveLectures />;
+      case 'homework':
+        return <Homework />;
+      case 'exams':
+        return <Exams />;
+      case 'results':
+        return <Results />;
+      case 'profile':
+        return <Profile />;
+      case 'institute-details':
+        return <InstituteDetails />;
+      case 'appearance':
+        return <Appearance />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  if (!user) {
+    return <Login onLogin={login} loginFunction={login} />;
   }
 
-  return view;
+  // If organizations page is active, render full screen without sidebar
+  if (currentPage === 'organizations' && !selectedOrganization) {
+    return renderComponent();
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      <div className="flex w-full h-screen">
+        <Sidebar 
+          isOpen={isSidebarOpen}
+          onClose={handleSidebarClose}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+          <Header onMenuClick={handleMenuClick} />
+          <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
+            <div className="max-w-full">
+              {renderComponent()}
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Index = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 };
 
 export default Index;
