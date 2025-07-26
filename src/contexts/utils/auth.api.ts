@@ -1,3 +1,4 @@
+
 import { LoginCredentials, ApiResponse, Institute } from '../types/auth.types';
 
 export const getBaseUrl = () => {
@@ -9,19 +10,8 @@ export const getBaseUrl2 = () => {
 };
 
 export const getApiHeaders = () => {
-  const token = localStorage.getItem('access_token');
-  if (!token) {
-    console.warn('No access token found for API headers');
-    return {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    };
-  }
-  
-  console.log('Adding bearer token to API headers');
   return {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
     'ngrok-skip-browser-warning': 'true'
   };
 };
@@ -74,10 +64,8 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
   
   const response = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    },
+    headers: getApiHeaders(),
+    credentials: 'include', // Include cookies in request
     body: JSON.stringify(credentials),
   });
 
@@ -89,27 +77,12 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
   const loginData = await response.json();
   console.log('Login successful, received data:', loginData);
   
-  // Handle JWT token response structure
-  if (loginData.access_token) {
-    console.log('JWT access token received:', loginData.access_token);
-    
-    // Store the JWT token securely
-    localStorage.setItem('access_token', loginData.access_token);
-    
-    if (loginData.refresh_token) {
-      localStorage.setItem('refresh_token', loginData.refresh_token);
-      console.log('Refresh token stored');
-    }
-  } else {
-    console.warn('No access_token in login response');
-  }
-
   return loginData;
 };
 
-export const fetchUserInstitutes = async (userId: string, accessToken: string): Promise<Institute[]> => {
+export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> => {
   // Mock organizations for Organization Manager
-  if (userId === 'org-001' || accessToken === 'mock-org-manager-token') {
+  if (userId === 'org-001') {
     const mockOrganizations = [
       {
         id: 'org-1',
@@ -141,16 +114,11 @@ export const fetchUserInstitutes = async (userId: string, accessToken: string): 
   try {
     console.log(`Fetching institutes for user ${userId}...`);
     const baseUrl = getBaseUrl();
-    const headers = {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    };
-    
-    console.log('Request headers for institutes:', headers);
     
     const response = await fetch(`${baseUrl}/users/${userId}/institutes`, {
-      headers
+      method: 'GET',
+      headers: getApiHeaders(),
+      credentials: 'include' // Include cookies in request
     });
 
     if (response.ok) {
@@ -177,13 +145,13 @@ export const fetchUserInstitutes = async (userId: string, accessToken: string): 
 
 export const validateToken = async () => {
   const baseUrl = getBaseUrl();
-  const headers = getApiHeaders();
   
-  console.log('Validating token with headers:', headers);
+  console.log('Validating token via cookie...');
   
   const response = await fetch(`${baseUrl}/auth/me`, {
     method: 'GET',
-    headers,
+    headers: getApiHeaders(),
+    credentials: 'include' // Include cookies in request
   });
 
   if (!response.ok) {
@@ -194,4 +162,24 @@ export const validateToken = async () => {
   const userData = await response.json();
   console.log('Token validation successful:', userData);
   return userData;
+};
+
+export const logoutUser = async () => {
+  try {
+    const baseUrl = getBaseUrl();
+    
+    const response = await fetch(`${baseUrl}/auth/logout`, {
+      method: 'POST',
+      headers: getApiHeaders(),
+      credentials: 'include' // Include cookies in request
+    });
+    
+    if (response.ok) {
+      console.log('Server logout successful');
+    } else {
+      console.warn('Server logout failed, but proceeding with client logout');
+    }
+  } catch (error) {
+    console.error('Error during server logout:', error);
+  }
 };

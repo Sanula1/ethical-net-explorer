@@ -31,38 +31,15 @@ class ApiClient {
     this.useBaseUrl2 = use;
   }
 
-  private getAuthToken(): string | null {
-    // For organization-specific calls, use org_access_token
-    if (this.useBaseUrl2) {
-      return localStorage.getItem('org_access_token');
-    }
-    
-    // Try multiple token storage keys for compatibility
-    return localStorage.getItem('access_token') || 
-           localStorage.getItem('token') || 
-           localStorage.getItem('authToken');
-  }
-
   private getCurrentBaseUrl(): string {
     return this.useBaseUrl2 ? getBaseUrl2() : getBaseUrl();
   }
 
   private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
+    return {
       'Content-Type': 'application/json',
       'ngrok-skip-browser-warning': 'true'
     };
-
-    // Always include bearer token if available
-    const token = this.getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-      console.log('Bearer token added to request headers');
-    } else {
-      console.warn('No bearer token found in localStorage');
-    }
-
-    return headers;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -77,13 +54,9 @@ class ApiClient {
       
       // Handle authentication errors
       if (response.status === 401) {
-        console.warn('Authentication failed - token may be expired');
-        // Optionally clear invalid token
-        if (this.useBaseUrl2) {
-          localStorage.removeItem('org_access_token');
-        } else {
-          localStorage.removeItem('access_token');
-        }
+        console.warn('Authentication failed - redirecting to login');
+        // Optionally trigger logout or redirect to login
+        window.location.href = '/';
       }
       
       throw new Error(errorData.message || `HTTP Error: ${response.status}`);
@@ -110,11 +83,11 @@ class ApiClient {
     }
 
     console.log('GET Request:', url.toString());
-    console.log('Request Headers:', this.getHeaders());
     
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: this.getHeaders()
+      headers: this.getHeaders(),
+      credentials: 'include' // Include cookies
     });
 
     return this.handleResponse<T>(response);
@@ -125,11 +98,11 @@ class ApiClient {
     const url = `${baseUrl}${endpoint}`;
     
     console.log('POST Request:', url, data);
-    console.log('Request Headers:', this.getHeaders());
     
     const response = await fetch(url, {
       method: 'POST',
       headers: this.getHeaders(),
+      credentials: 'include', // Include cookies
       body: data ? JSON.stringify(data) : undefined
     });
 
@@ -141,11 +114,11 @@ class ApiClient {
     const url = `${baseUrl}${endpoint}`;
     
     console.log('PUT Request:', url, data);
-    console.log('Request Headers:', this.getHeaders());
     
     const response = await fetch(url, {
       method: 'PUT',
       headers: this.getHeaders(),
+      credentials: 'include', // Include cookies
       body: data ? JSON.stringify(data) : undefined
     });
 
@@ -157,11 +130,11 @@ class ApiClient {
     const url = `${baseUrl}${endpoint}`;
     
     console.log('PATCH Request:', url, data);
-    console.log('Request Headers:', this.getHeaders());
     
     const response = await fetch(url, {
       method: 'PATCH',
       headers: this.getHeaders(),
+      credentials: 'include', // Include cookies
       body: data ? JSON.stringify(data) : undefined
     });
 
@@ -173,11 +146,11 @@ class ApiClient {
     const url = `${baseUrl}${endpoint}`;
     
     console.log('DELETE Request:', url);
-    console.log('Request Headers:', this.getHeaders());
     
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: this.getHeaders()
+      headers: this.getHeaders(),
+      credentials: 'include' // Include cookies
     });
 
     return this.handleResponse<T>(response);
