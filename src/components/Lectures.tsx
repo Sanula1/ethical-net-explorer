@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import CreateLectureForm from '@/components/forms/CreateLectureForm';
 import UpdateLectureForm from '@/components/forms/UpdateLectureForm';
 import { DataCardView } from '@/components/ui/data-card-view';
-import { getBaseUrl } from '@/contexts/utils/auth.api';
+import { cachedApiClient } from '@/api/cachedClient';
 
 interface LecturesProps {
   apiLevel?: 'institute' | 'class' | 'subject';
@@ -27,6 +27,7 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
   const [lecturesData, setLecturesData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -34,93 +35,50 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-
-  const getAuthToken = () => {
-    const token = localStorage.getItem('access_token') || 
-                  localStorage.getItem('token') || 
-                  localStorage.getItem('authToken');
-    return token;
-  };
-
-  const getApiHeaders = () => {
-    const token = getAuthToken();
-    
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return headers;
-  };
-
   const buildQueryParams = () => {
-    const params = new URLSearchParams();
+    const params: Record<string, any> = {
+      page: 1,
+      limit: 100
+    };
 
     // Add context-aware filtering
     if (currentInstituteId) {
-      params.append('instituteId', currentInstituteId);
+      params.instituteId = currentInstituteId;
     }
 
     if (currentClassId) {
-      params.append('classId', currentClassId);
+      params.classId = currentClassId;
     }
 
     if (currentSubjectId) {
-      params.append('subjectId', currentSubjectId);
+      params.subjectId = currentSubjectId;
     }
-
-    // Add pagination
-    params.append('page', '1');
-    params.append('limit', '100');
 
     // Add filter parameters
     if (searchTerm.trim()) {
-      params.append('search', searchTerm.trim());
+      params.search = searchTerm.trim();
     }
 
     if (statusFilter !== 'all') {
-      params.append('status', statusFilter);
+      params.status = statusFilter;
     }
 
     if (typeFilter !== 'all') {
-      params.append('lectureType', typeFilter);
+      params.lectureType = typeFilter;
     }
 
     return params;
   };
 
-  const buildRequestBody = (additionalData: any = {}) => {
-    const body: any = { ...additionalData };
-
-    if (currentInstituteId) {
-      body.instituteId = currentInstituteId;
-    }
-
-    if (currentClassId) {
-      body.classId = currentClassId;
-    }
-
-    if (currentSubjectId) {
-      body.subjectId = currentSubjectId;
-    }
-
-    return body;
-  };
-
-  const handleLoadData = async () => {
+  const handleLoadData = async (forceRefresh = false) => {
     setIsLoading(true);
-    console.log(`Loading lectures data for API level: ${apiLevel}`);
+    console.log(`Loading lectures data for API level: ${apiLevel}`, { forceRefresh });
     console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
     
     try {
-      const baseUrl = getBaseUrl();
-      const headers = getApiHeaders();
       const userRole = (user?.role || 'Student') as UserRole;
-      let url = '';
+      let endpoint = '';
+      const params = buildQueryParams();
       
       if (userRole === 'Student') {
         // For students: use the new API endpoint with required parameters
@@ -133,50 +91,43 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
           return;
         }
         
-        const params = buildQueryParams();
-        url = `${baseUrl}/institute-class-subject-lectures?${params}`;
+        endpoint = '/institute-class-subject-lectures';
       } else if (userRole === 'InstituteAdmin') {
         // For InstituteAdmin: use specific API based on current selection
-        const params = buildQueryParams();
-        
         if (currentInstituteId && currentClassId && currentSubjectId) {
           // 4. Institute + Class + Subject selected
-          url = `${baseUrl}/institute-class-subject-lectures?${params}`;
+          endpoint = '/institute-class-subject-lectures';
         } else if (currentInstituteId && !currentClassId && !currentSubjectId) {
           // 3. Only Institute selected
-          url = `${baseUrl}/institute-class-subject-lectures?${params}`;
+          endpoint = '/institute-class-subject-lectures';
         } else {
           // Fallback to original API
-          url = params.toString() ? `${baseUrl}/lectures?${params}` : `${baseUrl}/lectures`;
+          endpoint = '/lectures';
         }
       } else {
         // For other roles: use the original API
-        const params = buildQueryParams();
-        url = params.toString() ? `${baseUrl}/lectures?${params}` : `${baseUrl}/lectures`;
+        endpoint = '/lectures';
       }
       
-      console.log('Fetching lectures from URL:', url);
+      console.log('Fetching lectures from endpoint:', endpoint, 'with params:', params);
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers
+      // Use cached API client
+      const result = await cachedApiClient.get(endpoint, params, { 
+        forceRefresh,
+        ttl: 10 // Cache lectures for 10 minutes (they change frequently)
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch lectures data');
-      }
-
-      const result = await response.json();
       console.log('Lectures loaded successfully:', result);
       
       // Handle both array response and paginated response
       const lectures = result.data || (Array.isArray(result) ? result : []);
       setLecturesData(lectures);
       setDataLoaded(true);
+      setLastRefresh(new Date());
       
       toast({
-        title: "Data Loaded",
-        description: `Successfully loaded ${lectures.length} lectures.`
+        title: forceRefresh ? "Data Refreshed" : "Data Loaded",
+        description: `Successfully ${forceRefresh ? 'refreshed' : 'loaded'} ${lectures.length} lectures.`
       });
     } catch (error) {
       console.error('Failed to load lectures:', error);
@@ -190,16 +141,22 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
     }
   };
 
+  const handleRefreshData = async () => {
+    console.log('Force refreshing lectures data...');
+    await handleLoadData(true);
+  };
+
   useEffect(() => {
     if (currentInstituteId) {
-      handleLoadData();
+      // Load from cache first, don't force refresh on context changes
+      handleLoadData(false);
     }
   }, [apiLevel, selectedInstitute, selectedClass, selectedSubject, searchTerm, statusFilter, typeFilter]);
 
   const handleCreateLecture = async () => {
-    // This function is called when create form is successful
     setIsCreateDialogOpen(false);
-    await handleLoadData();
+    // Force refresh after creating new lecture
+    await handleLoadData(true);
   };
 
   const handleEditLecture = async (lectureData: any) => {
@@ -209,10 +166,10 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
   };
 
   const handleUpdateLecture = async () => {
-    // This function is called when update form is successful
     setIsEditDialogOpen(false);
     setSelectedLectureData(null);
-    await handleLoadData();
+    // Force refresh after updating lecture
+    await handleLoadData(true);
   };
 
   const handleDeleteLecture = async (lectureData: any) => {
@@ -220,17 +177,9 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
     
     try {
       setIsLoading(true);
-      const baseUrl = getBaseUrl();
-      const headers = getApiHeaders();
       
-      const response = await fetch(`${baseUrl}/lectures/${lectureData.id}`, {
-        method: 'DELETE',
-        headers
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete lecture');
-      }
+      // Use cached client for delete (will clear related cache)
+      await cachedApiClient.delete(`/lectures/${lectureData.id}`);
 
       console.log('Lecture deleted successfully');
       
@@ -240,7 +189,8 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
         variant: "destructive"
       });
       
-      await handleLoadData();
+      // Force refresh after deletion
+      await handleLoadData(true);
       
     } catch (error) {
       console.error('Error deleting lecture:', error);
@@ -338,7 +288,7 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
             }
           </p>
           <Button 
-            onClick={handleLoadData} 
+            onClick={() => handleLoadData(false)} 
             disabled={isLoading || (userRole === 'Student' && (!currentInstituteId || !currentClassId || !currentSubjectId))}
             className="bg-blue-600 hover:bg-blue-700"
           >
@@ -358,9 +308,16 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
       ) : (
         <>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              {getTitle()}
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                {getTitle()}
+              </h1>
+              {lastRefresh && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Last refreshed: {lastRefresh.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -371,7 +328,7 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
                 Filters
               </Button>
               <Button 
-                onClick={handleLoadData} 
+                onClick={handleRefreshData} 
                 disabled={isLoading}
                 variant="outline"
                 size="sm"

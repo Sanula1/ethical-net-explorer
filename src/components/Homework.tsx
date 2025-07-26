@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import CreateHomeworkForm from '@/components/forms/CreateHomeworkForm';
 import UpdateHomeworkForm from '@/components/forms/UpdateHomeworkForm';
 import { DataCardView } from '@/components/ui/data-card-view';
-import { homeworkApi, type Homework, type HomeworkQueryParams } from '@/api/homework.api';
+import { cachedApiClient } from '@/api/cachedClient';
 
 interface HomeworkProps {
   apiLevel?: 'institute' | 'class' | 'subject';
@@ -24,9 +24,10 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedHomeworkData, setSelectedHomeworkData] = useState<any>(null);
-  const [homeworkData, setHomeworkData] = useState<Homework[]>([]);
+  const [homeworkData, setHomeworkData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   // Mobile view and filter states
   const [showFilters, setShowFilters] = useState(false);
@@ -35,8 +36,8 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
   const [sortBy, setSortBy] = useState('endDate');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
 
-  const buildQueryParams = (): HomeworkQueryParams => {
-    const params: HomeworkQueryParams = {
+  const buildQueryParams = () => {
+    const params: Record<string, any> = {
       page: 1,
       limit: 100,
       sortBy,
@@ -69,14 +70,15 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
     return params;
   };
 
-  const handleLoadData = async () => {
+  const handleLoadData = async (forceRefresh = false) => {
     setIsLoading(true);
-    console.log(`Loading homework data for API level: ${apiLevel}`);
+    console.log(`Loading homework data for API level: ${apiLevel}`, { forceRefresh });
     console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
     
     try {
       const userRole = (user?.role || 'Student') as UserRole;
       const params = buildQueryParams();
+      const endpoint = '/homework';
       
       if (userRole === 'Student') {
         // For students: require all selections
@@ -92,17 +94,23 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       
       console.log('Fetching homework with params:', params);
       
-      const result = await homeworkApi.getHomework(params);
+      // Use cached API client
+      const result = await cachedApiClient.get(endpoint, params, { 
+        forceRefresh,
+        ttl: 15 // Cache homework for 15 minutes
+      });
+      
       console.log('Homework loaded successfully:', result);
       
       // Handle both array response and paginated response
       const homework = result.data || (Array.isArray(result) ? result : []);
       setHomeworkData(homework);
       setDataLoaded(true);
+      setLastRefresh(new Date());
       
       toast({
-        title: "Data Loaded",
-        description: `Successfully loaded ${homework.length} homework assignments.`
+        title: forceRefresh ? "Data Refreshed" : "Data Loaded",
+        description: `Successfully ${forceRefresh ? 'refreshed' : 'loaded'} ${homework.length} homework assignments.`
       });
     } catch (error) {
       console.error('Failed to load homework:', error);
@@ -116,15 +124,22 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
     }
   };
 
+  const handleRefreshData = async () => {
+    console.log('Force refreshing homework data...');
+    await handleLoadData(true);
+  };
+
   useEffect(() => {
     if (currentInstituteId) {
-      handleLoadData();
+      // Load from cache first, don't force refresh on context changes
+      handleLoadData(false);
     }
   }, [apiLevel, selectedInstitute, selectedClass, selectedSubject, searchTerm, statusFilter, sortBy, sortOrder]);
 
   const handleCreateHomework = async () => {
     setIsCreateDialogOpen(false);
-    await handleLoadData();
+    // Force refresh after creating new homework
+    await handleLoadData(true);
   };
 
   const handleEditHomework = async (homeworkData: any) => {
@@ -136,7 +151,8 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
   const handleUpdateHomework = async () => {
     setIsEditDialogOpen(false);
     setSelectedHomeworkData(null);
-    await handleLoadData();
+    // Force refresh after updating homework
+    await handleLoadData(true);
   };
 
   const handleDeleteHomework = async (homeworkData: any) => {
@@ -144,7 +160,9 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
     
     try {
       setIsLoading(true);
-      await homeworkApi.deleteHomework(homeworkData.id);
+      
+      // Use cached client for delete (will clear related cache)
+      await cachedApiClient.delete(`/homework/${homeworkData.id}`);
       
       console.log('Homework deleted successfully');
       
@@ -154,7 +172,8 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
         variant: "destructive"
       });
       
-      await handleLoadData();
+      // Force refresh after deletion
+      await handleLoadData(true);
       
     } catch (error) {
       console.error('Error deleting homework:', error);
@@ -284,7 +303,7 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
             }
           </p>
           <Button 
-            onClick={handleLoadData} 
+            onClick={() => handleLoadData(false)} 
             disabled={isLoading || (userRole === 'Student' && (!currentInstituteId || !currentClassId || !currentSubjectId))}
             className="bg-blue-600 hover:bg-blue-700"
           >
@@ -304,9 +323,16 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       ) : (
         <>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              {getTitle()}
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                {getTitle()}
+              </h1>
+              {lastRefresh && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Last refreshed: {lastRefresh.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -317,7 +343,7 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
                 Filters
               </Button>
               <Button 
-                onClick={handleLoadData} 
+                onClick={handleRefreshData} 
                 disabled={isLoading}
                 variant="outline"
                 size="sm"

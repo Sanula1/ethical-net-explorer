@@ -10,8 +10,10 @@ import {
   LoginCredentials, 
   AuthContextType 
 } from './types/auth.types';
-import { loginUser, fetchUserInstitutes, validateToken } from './utils/auth.api';
+import { loginUser, validateToken } from './utils/auth.api';
 import { mapUserData } from './utils/user.utils';
+import { instituteApi } from '@/api/institute.api';
+import { apiCache } from '@/utils/apiCache';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -40,6 +42,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentChildId, setCurrentChildId] = useState<string | null>(null);
   const [currentOrganizationId, setCurrentOrganizationId] = useState<string | null>(null);
 
+  const fetchUserInstitutes = async (userId: string, forceRefresh = false): Promise<Institute[]> => {
+    try {
+      return await instituteApi.getUserInstitutes(userId, forceRefresh);
+    } catch (error) {
+      console.error('Error fetching user institutes:', error);
+      return [];
+    }
+  };
+
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     try {
@@ -47,21 +58,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const data = await loginUser(credentials);
       console.log('Login response received:', data);
 
-      // Handle JWT token structure
-      if (data.access_token) {
-        console.log('Storing JWT access token');
-        localStorage.setItem('access_token', data.access_token);
-        
-        if (data.refresh_token) {
-          localStorage.setItem('refresh_token', data.refresh_token);
-        }
-      } else {
-        console.error('No access_token in login response');
-        throw new Error('Invalid login response - no access token received');
-      }
-
-      // Fetch user institutes with the new token
-      const institutes = await fetchUserInstitutes(data.user.id, data.access_token);
+      // Fetch user institutes with caching
+      const institutes = await fetchUserInstitutes(data.user.id);
       
       const mappedUser = mapUserData(data.user, institutes);
       console.log('User mapped successfully:', mappedUser);
@@ -77,8 +75,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     console.log('Logging out user...');
     setUser(null);
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    
+    // Clear all cache when logging out
+    apiCache.clearAllCache();
+    
     setSelectedInstituteState(null);
     setSelectedClassState(null);
     setSelectedSubjectState(null);
@@ -127,24 +127,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setCurrentOrganizationId(organization?.id || null);
   };
 
+  // Method to refresh all data
+  const refreshUserData = async (forceRefresh = true) => {
+    if (!user) return;
+    
+    console.log('Refreshing user data...', { forceRefresh });
+    setIsLoading(true);
+    
+    try {
+      // Refresh institutes
+      const institutes = await fetchUserInstitutes(user.id, forceRefresh);
+      const mappedUser = mapUserData(user, institutes);
+      setUser(mappedUser);
+      
+      // If there's a selected institute, refresh its data too
+      if (currentInstituteId) {
+        await instituteApi.refreshInstituteData(user.id, currentInstituteId);
+      }
+      
+      console.log('User data refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const checkToken = async () => {
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        try {
-          console.log('Validating existing token...');
-          const data = await validateToken();
-          const institutes = await fetchUserInstitutes(data.id, token);
-          const mappedUser = mapUserData(data, institutes);
-          setUser(mappedUser);
-          console.log('Token validation successful, user restored');
-        } catch (error) {
-          console.error('Error validating token:', error);
-          console.log('Clearing invalid token');
-          logout();
-        }
-      } else {
-        console.log('No token found in localStorage');
+      try {
+        console.log('Validating existing token...');
+        const data = await validateToken();
+        const institutes = await fetchUserInstitutes(data.id);
+        const mappedUser = mapUserData(data, institutes);
+        setUser(mappedUser);
+        console.log('Token validation successful, user restored');
+      } catch (error) {
+        console.error('Error validating token:', error);
+        console.log('Clearing invalid session');
+        logout();
       }
       setIsInitialized(true);
     };
@@ -171,6 +192,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSelectedSubject,
     setSelectedChild,
     setSelectedOrganization,
+    refreshUserData,
     isLoading
   };
 

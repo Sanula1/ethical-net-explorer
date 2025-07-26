@@ -1,5 +1,6 @@
 
-import { apiClient, ApiResponse } from './client';
+import { cachedApiClient } from './cachedClient';
+import { ApiResponse } from './client';
 
 export interface Institute {
   id: string;
@@ -64,34 +65,82 @@ export interface InstituteQueryParams {
 }
 
 class InstituteApi {
-  async getUserInstitutes(userId: string): Promise<Institute[]> {
-    console.log('Fetching user institutes for user:', userId);
-    return apiClient.get<Institute[]>(`/users/${userId}/institutes`);
-  }
-
-  async getInstituteClasses(instituteId: string, params?: InstituteQueryParams): Promise<ApiResponse<Class[]>> {
-    console.log('Fetching institute classes:', instituteId, params);
-    return apiClient.get<ApiResponse<Class[]>>('/institute-classes', { 
-      instituteId, 
-      ...params 
+  async getUserInstitutes(userId: string, forceRefresh = false): Promise<Institute[]> {
+    console.log('Fetching user institutes for user:', userId, { forceRefresh });
+    const endpoint = `/users/${userId}/institutes`;
+    
+    return cachedApiClient.get<Institute[]>(endpoint, undefined, { 
+      forceRefresh,
+      ttl: 60 // Cache for 1 hour since institutes don't change often
     });
   }
 
-  async getInstituteClassSubjects(instituteId: string, classId?: string): Promise<any[]> {
+  async getInstituteClasses(
+    instituteId: string, 
+    params?: InstituteQueryParams, 
+    forceRefresh = false
+  ): Promise<ApiResponse<Class[]>> {
+    console.log('Fetching institute classes:', instituteId, params, { forceRefresh });
+    const endpoint = '/institute-classes';
+    const requestParams = { instituteId, ...params };
+    
+    return cachedApiClient.get<ApiResponse<Class[]>>(endpoint, requestParams, { 
+      forceRefresh,
+      ttl: 30 // Cache for 30 minutes
+    });
+  }
+
+  async getInstituteClassSubjects(
+    instituteId: string, 
+    classId?: string, 
+    forceRefresh = false
+  ): Promise<any[]> {
     const endpoint = classId 
       ? `/institute-class-subjects/institute/${instituteId}/class/${classId}`
       : `/institute-class-subjects/institute/${instituteId}`;
     
-    console.log('Fetching institute class subjects:', endpoint);
-    return apiClient.get<any[]>(endpoint);
+    console.log('Fetching institute class subjects:', endpoint, { forceRefresh });
+    
+    return cachedApiClient.get<any[]>(endpoint, undefined, { 
+      forceRefresh,
+      ttl: 30 // Cache for 30 minutes
+    });
   }
 
-  async getInstituteUsers(instituteId: string, userType?: string): Promise<ApiResponse<any[]>> {
+  async getInstituteUsers(
+    instituteId: string, 
+    userType?: string, 
+    forceRefresh = false
+  ): Promise<ApiResponse<any[]>> {
+    const endpoint = '/institute-users';
     const params: any = { instituteId };
     if (userType) params.userType = userType;
     
-    console.log('Fetching institute users:', params);
-    return apiClient.get<ApiResponse<any[]>>('/institute-users', params);
+    console.log('Fetching institute users:', params, { forceRefresh });
+    
+    return cachedApiClient.get<ApiResponse<any[]>>(endpoint, params, { 
+      forceRefresh,
+      ttl: 15 // Cache for 15 minutes since user data changes more frequently
+    });
+  }
+
+  // Method to force refresh all institute data
+  async refreshInstituteData(userId: string, instituteId?: string): Promise<void> {
+    console.log('Force refreshing institute data...', { userId, instituteId });
+    
+    // Refresh user institutes
+    await this.getUserInstitutes(userId, true);
+    
+    if (instituteId) {
+      // Refresh classes for the institute
+      await this.getInstituteClasses(instituteId, undefined, true);
+      
+      // Refresh subjects for the institute
+      await this.getInstituteClassSubjects(instituteId, undefined, true);
+      
+      // Refresh users for the institute
+      await this.getInstituteUsers(instituteId, undefined, true);
+    }
   }
 }
 

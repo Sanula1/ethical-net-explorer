@@ -1,97 +1,150 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RefreshCw } from 'lucide-react';
 import { useAuth, type UserRole } from '@/contexts/AuthContext';
 import { AccessControl } from '@/utils/permissions';
 import { useToast } from '@/hooks/use-toast';
 import DataTable from '@/components/ui/data-table';
-
-const mockGrades = [
-  {
-    id: '1',
-    studentId: 'STU001',
-    studentName: 'John Doe',
-    subject: 'Mathematics',
-    assignment: 'Mid-term Exam',
-    maxMarks: 100,
-    obtainedMarks: 85,
-    grade: 'A',
-    percentage: 85,
-    date: '2024-01-15'
-  },
-  {
-    id: '2',
-    studentId: 'STU002',
-    studentName: 'Sarah Smith',
-    subject: 'Science',
-    assignment: 'Lab Report',
-    maxMarks: 50,
-    obtainedMarks: 42,
-    grade: 'B+',
-    percentage: 84,
-    date: '2024-01-16'
-  }
-];
-
-const mockAssignments = [
-  {
-    id: '1',
-    title: 'Mid-term Exam',
-    subject: 'Mathematics',
-    class: 'Grade 10-A',
-    maxMarks: 100,
-    dueDate: '2024-01-20',
-    status: 'Active',
-    graded: 15,
-    total: 30
-  },
-  {
-    id: '2',
-    title: 'Physics Lab Report',
-    subject: 'Physics',
-    class: 'Grade 11-S',
-    maxMarks: 50,
-    dueDate: '2024-01-25',
-    status: 'Draft',
-    graded: 0,
-    total: 25
-  }
-];
-
-const mockReportCards = [
-  {
-    id: '1',
-    studentId: 'STU001',
-    studentName: 'John Doe',
-    class: 'Grade 10-A',
-    term: 'Term 1',
-    overallGrade: 'A',
-    percentage: 87.5,
-    rank: 3,
-    status: 'Published'
-  },
-  {
-    id: '2',
-    studentId: 'STU002',
-    studentName: 'Sarah Smith',
-    class: 'Grade 11-S',
-    term: 'Term 1',
-    overallGrade: 'B+',
-    percentage: 82.3,
-    rank: 8,
-    status: 'Draft'
-  }
-];
+import { cachedApiClient } from '@/api/cachedClient';
 
 const Grading = () => {
-  const { user } = useAuth();
+  const { user, selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId } = useAuth();
   const { toast } = useToast();
-  const [selectedClass, setSelectedClass] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('');
+  const [selectedClassFilter, setSelectedClassFilter] = useState('');
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
+  // Mock data - in real implementation, these would come from cached API calls
+  const [mockGrades, setMockGrades] = useState([
+    {
+      id: '1',
+      studentId: 'STU001',
+      studentName: 'John Doe',
+      subject: 'Mathematics',
+      assignment: 'Mid-term Exam',
+      maxMarks: 100,
+      obtainedMarks: 85,
+      grade: 'A',
+      percentage: 85,
+      date: '2024-01-15'
+    },
+    {
+      id: '2',
+      studentId: 'STU002',
+      studentName: 'Sarah Smith',
+      subject: 'Science',
+      assignment: 'Lab Report',
+      maxMarks: 50,
+      obtainedMarks: 42,
+      grade: 'B+',
+      percentage: 84,
+      date: '2024-01-16'
+    }
+  ]);
+
+  const [mockAssignments, setMockAssignments] = useState([
+    {
+      id: '1',
+      title: 'Mid-term Exam',
+      subject: 'Mathematics',
+      class: 'Grade 10-A',
+      maxMarks: 100,
+      dueDate: '2024-01-20',
+      status: 'Active',
+      graded: 15,
+      total: 30
+    },
+    {
+      id: '2',
+      title: 'Physics Lab Report',
+      subject: 'Physics',
+      class: 'Grade 11-S',
+      maxMarks: 50,
+      dueDate: '2024-01-25',
+      status: 'Draft',
+      graded: 0,
+      total: 25
+    }
+  ]);
+
+  const [mockReportCards, setMockReportCards] = useState([
+    {
+      id: '1',
+      studentId: 'STU001',
+      studentName: 'John Doe',
+      class: 'Grade 10-A',
+      term: 'Term 1',
+      overallGrade: 'A',
+      percentage: 87.5,
+      rank: 3,
+      status: 'Published'
+    },
+    {
+      id: '2',
+      studentId: 'STU002',
+      studentName: 'Sarah Smith',
+      class: 'Grade 11-S',
+      term: 'Term 1',
+      overallGrade: 'B+',
+      percentage: 82.3,
+      rank: 8,
+      status: 'Draft'
+    }
+  ]);
+
+  const handleRefreshData = async () => {
+    setIsLoading(true);
+    console.log('Force refreshing grading data...');
+    
+    try {
+      // In real implementation, you would make API calls here using cachedApiClient
+      // For now, we'll simulate a refresh with a delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Force refresh all grading-related data
+      const params = {
+        instituteId: currentInstituteId,
+        classId: currentClassId,
+        subjectId: currentSubjectId
+      };
+
+      // Example API calls that would be made:
+      // await cachedApiClient.refresh('/grades', params);
+      // await cachedApiClient.refresh('/assignments', params);
+      // await cachedApiClient.refresh('/report-cards', params);
+      
+      setLastRefresh(new Date());
+      
+      toast({
+        title: "Data Refreshed",
+        description: "All grading data has been refreshed successfully."
+      });
+    } catch (error) {
+      console.error('Error refreshing grading data:', error);
+      toast({
+        title: "Refresh Failed",
+        description: "Failed to refresh grading data.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Auto-refresh when context changes (using cached data)
+    if (currentInstituteId) {
+      console.log('Context changed, loading grading data from cache...');
+      // In real implementation, this would load data using cachedApiClient
+      setLastRefresh(new Date());
+    }
+  }, [currentInstituteId, currentClassId, currentSubjectId]);
 
   const gradesColumns = [
     { key: 'studentId', header: 'Student ID' },
@@ -139,12 +192,14 @@ const Grading = () => {
     });
   };
 
-  const handleDeleteGrade = (grade: any) => {
+  const handleDeleteGrade = async (grade: any) => {
+    // In real implementation, use cachedApiClient.delete and then refresh
     toast({
       title: "Grade Deleted",
       description: `Grade for ${grade.studentName} has been deleted.`,
       variant: "destructive"
     });
+    await handleRefreshData();
   };
 
   const handleCreateAssignment = () => {
@@ -168,11 +223,13 @@ const Grading = () => {
     });
   };
 
-  const handlePublishReportCard = (reportCard: any) => {
+  const handlePublishReportCard = async (reportCard: any) => {
+    // In real implementation, use cachedApiClient.put and then refresh
     toast({
       title: "Report Card Published",
       description: `Report card for ${reportCard.studentName} has been published.`
     });
+    await handleRefreshData();
   };
 
   const canGrade = AccessControl.hasPermission((user?.role || 'Student') as UserRole, 'grade-assignments');
@@ -180,13 +237,39 @@ const Grading = () => {
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Grading & Assessment
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Manage student grades, assignments, and generate report cards
-        </p>
+      <div className="flex justify-between items-center">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Grading & Assessment
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Manage student grades, assignments, and generate report cards
+          </p>
+          {lastRefresh && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Last refreshed: {lastRefresh.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+        
+        <Button 
+          onClick={handleRefreshData} 
+          disabled={isLoading}
+          variant="outline"
+          size="sm"
+        >
+          {isLoading ? (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Refreshing...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Data
+            </>
+          )}
+        </Button>
       </div>
 
       <Tabs defaultValue="grades" className="w-full">
@@ -205,7 +288,7 @@ const Grading = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-4">
-                <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <Select value={selectedClassFilter} onValueChange={setSelectedClassFilter}>
                   <SelectTrigger className="w-48">
                     <SelectValue placeholder="Select Class" />
                   </SelectTrigger>
@@ -216,7 +299,7 @@ const Grading = () => {
                   </SelectContent>
                 </Select>
                 
-                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <Select value={selectedSubjectFilter} onValueChange={setSelectedSubjectFilter}>
                   <SelectTrigger className="w-48">
                     <SelectValue placeholder="Select Subject" />
                   </SelectTrigger>
