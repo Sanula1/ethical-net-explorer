@@ -11,6 +11,7 @@ import { getBaseUrl } from '@/contexts/utils/auth.api';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { cachedApiClient } from '@/api/cachedClient';
 
 interface ClassData {
   id: string;
@@ -89,149 +90,74 @@ const ClassSelector = () => {
   const [academicYearFilter, setAcademicYearFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const getAuthToken = () => {
-    const token = localStorage.getItem('access_token') || 
-                  localStorage.getItem('token') || 
-                  localStorage.getItem('authToken');
-    return token;
-  };
+  const fetchClassesByRole = async (forceRefresh = false) => {
+    if (!currentInstituteId) return;
 
-  const getApiHeaders = () => {
-    const token = getAuthToken();
-    
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return headers;
-  };
-
-  const fetchClassesByRole = async () => {
     setIsLoading(true);
-    console.log('Loading classes data for user role:', user?.role);
+    console.log('Loading classes data for user role:', user?.role, { forceRefresh });
     
     try {
-      const baseUrl = getBaseUrl();
-      const headers = getApiHeaders();
-      let url = '';
-      
       const userRole = (user?.role || 'Student') as UserRole;
+      let endpoint = '';
+      let params: Record<string, any> = {};
       
       if (userRole === 'Student') {
-        url = `${baseUrl}/institute-class-students/student/${user?.id}/classes?limit=100&instituteId=${currentInstituteId}&isActive=true`;
+        endpoint = `/institute-class-students/student/${user?.id}/classes`;
+        params = { limit: 100, instituteId: currentInstituteId, isActive: true };
       } else if (userRole === 'Teacher') {
-        url = `${baseUrl}/institute-class-subjects/institute/${currentInstituteId}/teacher/${user?.id}`;
+        endpoint = `/institute-class-subjects/institute/${currentInstituteId}/teacher/${user?.id}`;
       } else if (userRole === 'InstituteAdmin' || userRole === 'AttendanceMarker') {
-        url = `${baseUrl}/institute-classes?instituteId=${currentInstituteId}`;
+        endpoint = '/institute-classes';
+        params = { instituteId: currentInstituteId };
       } else {
         throw new Error('Unsupported user role for class selection');
       }
 
-      console.log('Fetching from URL:', url);
+      // Check cache first if not forcing refresh
+      if (!forceRefresh) {
+        const hasCache = await cachedApiClient.hasCache(endpoint, params);
+        if (hasCache) {
+          console.log('Data found in cache, loading from cache...');
+          const cachedData = await cachedApiClient.get(endpoint, params, { ttl: 60 });
+          processClassesData(cachedData, userRole);
+          return;
+        }
+      }
+
+      console.log(`Making API call for ${endpoint}:`, params);
       
-      let response = await fetch(url, {
-        method: 'GET',
-        headers
+      // Use cached API client which will handle caching
+      const result = await cachedApiClient.get(endpoint, params, { 
+        forceRefresh,
+        ttl: 60 // Cache for 1 hour
       });
 
-      if (!response.ok && (userRole === 'InstituteAdmin' || userRole === 'AttendanceMarker')) {
-        console.log('First endpoint failed, trying alternative...');
-        url = `${baseUrl}/classes?instituteId=${currentInstituteId}`;
-        response = await fetch(url, {
-          method: 'GET',
-          headers
-        });
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch classes data: ${response.status}`);
-      }
-
-      const result = await response.json();
       console.log('Raw API response:', result);
-      
-      let classesArray: ClassData[] = [];
-      
-      if (userRole === 'Teacher') {
-        let teacherClassSubjects: TeacherClassSubjectData[] = [];
-        
-        if (Array.isArray(result)) {
-          teacherClassSubjects = result;
-        } else if (result.data && Array.isArray(result.data)) {
-          teacherClassSubjects = result.data;
-        }
-
-        const uniqueClasses = new Map<string, ClassData>();
-        
-        teacherClassSubjects.forEach((item: TeacherClassSubjectData) => {
-          if (!uniqueClasses.has(item.classId)) {
-            uniqueClasses.set(item.classId, {
-              id: item.classId,
-              name: item.class.name,
-              code: item.class.code,
-              description: `${item.class.name} - Teaching ${item.subject.name}`,
-              specialty: 'Teacher Assignment',
-              classType: 'Teaching',
-              academicYear: 'Current',
-              isActive: item.isActive,
-              capacity: 0,
-              classTeacherId: item.class.classTeacherId,
-              _count: {
-                students: 0,
-                subjects: 1
-              }
-            });
-          } else {
-            const existingClass = uniqueClasses.get(item.classId)!;
-            if (existingClass._count) {
-              existingClass._count.subjects += 1;
-            }
-          }
-        });
-
-        classesArray = Array.from(uniqueClasses.values());
-      } else {
-        if (Array.isArray(result)) {
-          classesArray = result;
-        } else if (result.data && Array.isArray(result.data)) {
-          classesArray = result.data;
-        } else {
-          console.warn('Unexpected response structure:', result);
-          classesArray = [];
-        }
-      }
-
-      const transformedClasses = classesArray.map((classItem: ClassData): ClassCardData => ({
-        id: classItem.id,
-        name: classItem.name,
-        code: classItem.code,
-        description: classItem.description || `${classItem.name} - ${classItem.specialty || classItem.classType || 'General'}`,
-        capacity: classItem.capacity || 0,
-        studentCount: classItem._count?.students || 0,
-        subjectCount: classItem._count?.subjects || 0,
-        academicYear: classItem.academicYear || 'N/A',
-        specialty: classItem.specialty || classItem.classType || 'General',
-        classType: classItem.classType || 'Regular',
-        isActive: classItem.isActive !== false
-      }));
-
-      console.log('Transformed classes:', transformedClasses);
-      setClassesData(transformedClasses);
-      setFilteredClasses(transformedClasses);
-      setDataLoaded(true);
-      
-      toast({
-        title: "Classes Loaded",
-        description: `Successfully loaded ${transformedClasses.length} classes.`
-      });
+      processClassesData(result, userRole);
       
     } catch (error) {
       console.error('Failed to load classes:', error);
+      
+      // Fallback: try alternative endpoint for admin users
+      if ((user?.role === 'InstituteAdmin' || user?.role === 'AttendanceMarker') && !forceRefresh) {
+        try {
+          console.log('Trying alternative endpoint...');
+          const fallbackEndpoint = '/classes';
+          const fallbackParams = { instituteId: currentInstituteId };
+          
+          const fallbackResult = await cachedApiClient.get(fallbackEndpoint, fallbackParams, { 
+            forceRefresh,
+            ttl: 60 
+          });
+          
+          console.log('Fallback API response:', fallbackResult);
+          processClassesData(fallbackResult, user?.role as UserRole);
+          return;
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+        }
+      }
+      
       toast({
         title: "Load Failed",
         description: "Failed to load classes data.",
@@ -240,6 +166,83 @@ const ClassSelector = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const processClassesData = (result: any, userRole: UserRole) => {
+    let classesArray: ClassData[] = [];
+    
+    if (userRole === 'Teacher') {
+      let teacherClassSubjects: TeacherClassSubjectData[] = [];
+      
+      if (Array.isArray(result)) {
+        teacherClassSubjects = result;
+      } else if (result.data && Array.isArray(result.data)) {
+        teacherClassSubjects = result.data;
+      }
+
+      const uniqueClasses = new Map<string, ClassData>();
+      
+      teacherClassSubjects.forEach((item: TeacherClassSubjectData) => {
+        if (!uniqueClasses.has(item.classId)) {
+          uniqueClasses.set(item.classId, {
+            id: item.classId,
+            name: item.class.name,
+            code: item.class.code,
+            description: `${item.class.name} - Teaching ${item.subject.name}`,
+            specialty: 'Teacher Assignment',
+            classType: 'Teaching',
+            academicYear: 'Current',
+            isActive: item.isActive,
+            capacity: 0,
+            classTeacherId: item.class.classTeacherId,
+            _count: {
+              students: 0,
+              subjects: 1
+            }
+          });
+        } else {
+          const existingClass = uniqueClasses.get(item.classId)!;
+          if (existingClass._count) {
+            existingClass._count.subjects += 1;
+          }
+        }
+      });
+
+      classesArray = Array.from(uniqueClasses.values());
+    } else {
+      if (Array.isArray(result)) {
+        classesArray = result;
+      } else if (result.data && Array.isArray(result.data)) {
+        classesArray = result.data;
+      } else {
+        console.warn('Unexpected response structure:', result);
+        classesArray = [];
+      }
+    }
+
+    const transformedClasses = classesArray.map((classItem: ClassData): ClassCardData => ({
+      id: classItem.id,
+      name: classItem.name,
+      code: classItem.code,
+      description: classItem.description || `${classItem.name} - ${classItem.specialty || classItem.classType || 'General'}`,
+      capacity: classItem.capacity || 0,
+      studentCount: classItem._count?.students || 0,
+      subjectCount: classItem._count?.subjects || 0,
+      academicYear: classItem.academicYear || 'N/A',
+      specialty: classItem.specialty || classItem.classType || 'General',
+      classType: classItem.classType || 'Regular',
+      isActive: classItem.isActive !== false
+    }));
+
+    console.log('Transformed classes:', transformedClasses);
+    setClassesData(transformedClasses);
+    setFilteredClasses(transformedClasses);
+    setDataLoaded(true);
+    
+    toast({
+      title: "Classes Loaded",
+      description: `Successfully loaded ${transformedClasses.length} classes.`
+    });
   };
 
   useEffect(() => {
@@ -306,7 +309,7 @@ const ClassSelector = () => {
 
   useEffect(() => {
     if (user && currentInstituteId) {
-      fetchClassesByRole();
+      fetchClassesByRole(false); // Never force refresh on mount
     }
   }, [user, currentInstituteId]);
 
