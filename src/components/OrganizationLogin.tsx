@@ -31,6 +31,16 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
     }
   }, []);
 
+  const validateUrl = (url: string): boolean => {
+    try {
+      const urlObj = new URL(url);
+      // Allow both HTTP and HTTPS for development/production flexibility
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -47,6 +57,15 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
       toast({
         title: "Configuration Error",
         description: "Please set the organization API base URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!validateUrl(baseUrl2)) {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL (http:// or https://)",
         variant: "destructive",
       });
       return;
@@ -77,9 +96,13 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
       let errorMessage = "Login failed. Please check your credentials and try again.";
       if (error instanceof Error) {
         if (error.message.includes('Mixed Content') || error.message.includes('Failed to fetch')) {
-          errorMessage = "Network error. Please check the API URL and ensure it uses HTTPS.";
+          errorMessage = "Network error. Please check the API URL and ensure the server is accessible.";
         } else if (error.message.includes('Organization base URL not configured')) {
           errorMessage = "Please configure the organization API base URL.";
+        } else if (error.message.includes('HTTP Error: 404')) {
+          errorMessage = "API endpoint not found. Please verify the base URL is correct.";
+        } else if (error.message.includes('HTTP Error: 401')) {
+          errorMessage = "Invalid credentials. Please check your email and password.";
         }
       }
       
@@ -175,14 +198,14 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
                   <Label htmlFor="baseUrl2">Organization API Base URL</Label>
                   <Input
                     id="baseUrl2"
-                    type="url"
-                    placeholder="https://your-org-api.com"
+                    type="text"
+                    placeholder="http://localhost:3000 or https://your-org-api.com"
                     value={baseUrl2}
                     onChange={(e) => setBaseUrl2(e.target.value)}
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    The base URL for your organization's API endpoint
+                    The base URL for your organization's API endpoint (supports both HTTP and HTTPS)
                   </p>
                 </div>
               </CollapsibleContent>
