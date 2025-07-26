@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Filter } from 'lucide-react';
+import { RefreshCw, Filter, Plus, Calendar, Clock, FileText, CheckCircle } from 'lucide-react';
 import { useAuth, type UserRole } from '@/contexts/AuthContext';
 import { AccessControl } from '@/utils/permissions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -29,20 +29,16 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  // Mobile view and filter states
+  // Filter states
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('endDate');
-  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
+  const [priorityFilter, setPriorityFilter] = useState('all');
 
   const buildQueryParams = () => {
     const params: Record<string, any> = {
       page: 1,
-      limit: 100,
-      sortBy,
-      sortOrder,
-      isActive: true
+      limit: 100
     };
 
     // Add context-aware filtering
@@ -67,51 +63,48 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       params.status = statusFilter;
     }
 
+    if (priorityFilter !== 'all') {
+      params.priority = priorityFilter;
+    }
+
     return params;
   };
 
   const handleLoadData = async (forceRefresh = false) => {
+    if (!currentInstituteId) return;
+
+    const endpoint = '/homework';
+    const params = buildQueryParams();
+    
+    // Check if data exists in cache (only if not forcing refresh)
+    if (!forceRefresh && cachedApiClient.hasCache(endpoint, params)) {
+      console.log('Data already exists in cache, skipping API call');
+      return;
+    }
+
     setIsLoading(true);
     console.log(`Loading homework data for API level: ${apiLevel}`, { forceRefresh });
-    console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
     
     try {
-      const userRole = (user?.role || 'Student') as UserRole;
-      const params = buildQueryParams();
-      const endpoint = '/homework';
-      
-      if (userRole === 'Student') {
-        // For students: require all selections
-        if (!currentInstituteId || !currentClassId || !currentSubjectId) {
-          toast({
-            title: "Missing Selection",
-            description: "Please select institute, class, and subject to view homework.",
-            variant: "destructive"
-          });
-          return;
-        }
-      }
-      
-      console.log('Fetching homework with params:', params);
-      
-      // Use cached API client
       const result = await cachedApiClient.get(endpoint, params, { 
         forceRefresh,
         ttl: 15 // Cache homework for 15 minutes
       });
-      
+
       console.log('Homework loaded successfully:', result);
       
       // Handle both array response and paginated response
-      const homework = result.data || (Array.isArray(result) ? result : []);
+      const homework = Array.isArray(result) ? result : (result as any)?.data || [];
       setHomeworkData(homework);
       setDataLoaded(true);
       setLastRefresh(new Date());
       
-      toast({
-        title: forceRefresh ? "Data Refreshed" : "Data Loaded",
-        description: `Successfully ${forceRefresh ? 'refreshed' : 'loaded'} ${homework.length} homework assignments.`
-      });
+      if (forceRefresh) {
+        toast({
+          title: "Data Refreshed",
+          description: `Successfully refreshed ${homework.length} homework items.`
+        });
+      }
     } catch (error) {
       console.error('Failed to load homework:', error);
       toast({
@@ -129,12 +122,19 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
     await handleLoadData(true);
   };
 
+  // Load data only when component mounts or context changes, but don't force refresh
   useEffect(() => {
     if (currentInstituteId) {
-      // Load from cache first, don't force refresh on context changes
+      handleLoadData(false); // Never force refresh on navigation
+    }
+  }, [apiLevel, selectedInstitute, selectedClass, selectedSubject]);
+
+  // Load data when filters change (without refresh)
+  useEffect(() => {
+    if (currentInstituteId && dataLoaded) {
       handleLoadData(false);
     }
-  }, [apiLevel, selectedInstitute, selectedClass, selectedSubject, searchTerm, statusFilter, sortBy, sortOrder]);
+  }, [searchTerm, statusFilter, priorityFilter]);
 
   const handleCreateHomework = async () => {
     setIsCreateDialogOpen(false);
@@ -163,7 +163,7 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       
       // Use cached client for delete (will clear related cache)
       await cachedApiClient.delete(`/homework/${homeworkData.id}`);
-      
+
       console.log('Homework deleted successfully');
       
       toast({
@@ -198,51 +198,14 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
   const homeworkColumns = [
     { key: 'title', header: 'Title' },
     { key: 'description', header: 'Description' },
+    { key: 'priority', header: 'Priority', render: (value: string) => <Badge variant="outline">{value}</Badge> },
+    { key: 'dueDate', header: 'Due Date', render: (value: string) => new Date(value).toLocaleDateString() },
     { 
-      key: 'startDate', 
-      header: 'Start Date', 
-      render: (value: string) => value ? new Date(value).toLocaleDateString() : 'Not set'
-    },
-    { 
-      key: 'endDate', 
-      header: 'End Date', 
-      render: (value: string) => value ? new Date(value).toLocaleDateString() : 'Not set'
-    },
-    { 
-      key: 'teacher', 
-      header: 'Teacher',
-      render: (value: any) => value ? `${value.firstName} ${value.lastName}` : 'Not assigned'
-    },
-    { 
-      key: 'subject', 
-      header: 'Subject',
-      render: (value: any) => value ? `${value.name} (${value.code})` : 'Not assigned'
-    },
-    { 
-      key: 'class', 
-      header: 'Class',
-      render: (value: any) => value ? `${value.name}` : 'Not assigned'
-    },
-    { 
-      key: 'institute', 
-      header: 'Institute',
-      render: (value: any) => value ? `${value.name}` : 'Not assigned'
-    },
-    { 
-      key: 'referenceLink', 
-      header: 'Reference Link',
-      render: (value: string) => value ? (
-        <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-          View Resource
-        </a>
-      ) : 'None'
-    },
-    { 
-      key: 'isActive', 
+      key: 'status', 
       header: 'Status',
-      render: (value: boolean) => (
-        <Badge variant={value ? 'default' : 'secondary'}>
-          {value ? 'Active' : 'Inactive'}
+      render: (value: string) => (
+        <Badge variant={value === 'assigned' ? 'default' : value === 'submitted' ? 'secondary' : 'destructive'}>
+          {value}
         </Badge>
       )
     }
@@ -284,9 +247,12 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       );
     
     const matchesStatus = statusFilter === 'all' || 
-      String(homework.isActive) === statusFilter;
+      homework.status === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    const matchesPriority = priorityFilter === 'all' || 
+      homework.priority === priorityFilter;
+    
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
   return (
@@ -297,14 +263,14 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
             {getTitle()}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {userRole === 'Student' && (!currentInstituteId || !currentClassId || !currentSubjectId)
-              ? 'Please select institute, class, and subject to view homework.'
+            {!currentInstituteId
+              ? 'Please select institute to view homework.'
               : 'Click the button below to load homework data'
             }
           </p>
           <Button 
             onClick={() => handleLoadData(false)} 
-            disabled={isLoading || (userRole === 'Student' && (!currentInstituteId || !currentClassId || !currentSubjectId))}
+            disabled={isLoading || !currentInstituteId}
             className="bg-blue-600 hover:bg-blue-700"
           >
             {isLoading ? (
@@ -365,7 +331,7 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
 
           {/* Filter Controls */}
           {showFilters && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
                   Search Homework
@@ -388,40 +354,28 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="true">Active</SelectItem>
-                    <SelectItem value="false">Inactive</SelectItem>
+                    <SelectItem value="assigned">Assigned</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="graded">Graded</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Sort By
+                  Priority
                 </label>
-                <Select value={sortBy} onValueChange={setSortBy}>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Sort By" />
+                    <SelectValue placeholder="Priority" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="endDate">End Date</SelectItem>
-                    <SelectItem value="startDate">Start Date</SelectItem>
-                    <SelectItem value="title">Title</SelectItem>
-                    <SelectItem value="createdAt">Created Date</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Sort Order
-                </label>
-                <Select value={sortOrder} onValueChange={(value: 'ASC' | 'DESC') => setSortOrder(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DESC">Descending</SelectItem>
-                    <SelectItem value="ASC">Ascending</SelectItem>
+                    <SelectItem value="all">All Priorities</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -432,8 +386,7 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
                   onClick={() => {
                     setSearchTerm('');
                     setStatusFilter('all');
-                    setSortBy('endDate');
-                    setSortOrder('DESC');
+                    setPriorityFilter('all');
                   }}
                   className="w-full"
                 >

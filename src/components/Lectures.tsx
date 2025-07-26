@@ -71,44 +71,52 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
   };
 
   const handleLoadData = async (forceRefresh = false) => {
+    if (!currentInstituteId) return;
+
+    const userRole = (user?.role || 'Student') as UserRole;
+    let endpoint = '';
+    const params = buildQueryParams();
+    
+    if (userRole === 'Student') {
+      // For students: use the new API endpoint with required parameters
+      if (!currentInstituteId || !currentClassId || !currentSubjectId) {
+        toast({
+          title: "Missing Selection",
+          description: "Please select institute, class, and subject to view lectures.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      endpoint = '/institute-class-subject-lectures';
+    } else if (userRole === 'InstituteAdmin') {
+      // For InstituteAdmin: use specific API based on current selection
+      if (currentInstituteId && currentClassId && currentSubjectId) {
+        // 4. Institute + Class + Subject selected
+        endpoint = '/institute-class-subject-lectures';
+      } else if (currentInstituteId && !currentClassId && !currentSubjectId) {
+        // 3. Only Institute selected
+        endpoint = '/institute-class-subject-lectures';
+      } else {
+        // Fallback to original API
+        endpoint = '/lectures';
+      }
+    } else {
+      // For other roles: use the original API
+      endpoint = '/lectures';
+    }
+
+    // Check if data exists in cache (only if not forcing refresh)
+    if (!forceRefresh && cachedApiClient.hasCache(endpoint, params)) {
+      console.log('Data already exists in cache, skipping API call');
+      return;
+    }
+
     setIsLoading(true);
     console.log(`Loading lectures data for API level: ${apiLevel}`, { forceRefresh });
     console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
     
     try {
-      const userRole = (user?.role || 'Student') as UserRole;
-      let endpoint = '';
-      const params = buildQueryParams();
-      
-      if (userRole === 'Student') {
-        // For students: use the new API endpoint with required parameters
-        if (!currentInstituteId || !currentClassId || !currentSubjectId) {
-          toast({
-            title: "Missing Selection",
-            description: "Please select institute, class, and subject to view lectures.",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        endpoint = '/institute-class-subject-lectures';
-      } else if (userRole === 'InstituteAdmin') {
-        // For InstituteAdmin: use specific API based on current selection
-        if (currentInstituteId && currentClassId && currentSubjectId) {
-          // 4. Institute + Class + Subject selected
-          endpoint = '/institute-class-subject-lectures';
-        } else if (currentInstituteId && !currentClassId && !currentSubjectId) {
-          // 3. Only Institute selected
-          endpoint = '/institute-class-subject-lectures';
-        } else {
-          // Fallback to original API
-          endpoint = '/lectures';
-        }
-      } else {
-        // For other roles: use the original API
-        endpoint = '/lectures';
-      }
-      
       console.log('Fetching lectures from endpoint:', endpoint, 'with params:', params);
       
       // Use cached API client
@@ -120,15 +128,17 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
       console.log('Lectures loaded successfully:', result);
       
       // Handle both array response and paginated response
-      const lectures = result.data || (Array.isArray(result) ? result : []);
+      const lectures = Array.isArray(result) ? result : (result as any)?.data || [];
       setLecturesData(lectures);
       setDataLoaded(true);
       setLastRefresh(new Date());
       
-      toast({
-        title: forceRefresh ? "Data Refreshed" : "Data Loaded",
-        description: `Successfully ${forceRefresh ? 'refreshed' : 'loaded'} ${lectures.length} lectures.`
-      });
+      if (forceRefresh) {
+        toast({
+          title: "Data Refreshed",
+          description: `Successfully refreshed ${lectures.length} lectures.`
+        });
+      }
     } catch (error) {
       console.error('Failed to load lectures:', error);
       toast({
@@ -146,12 +156,19 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
     await handleLoadData(true);
   };
 
+  // Load data only when component mounts or context changes, but don't force refresh
   useEffect(() => {
     if (currentInstituteId) {
-      // Load from cache first, don't force refresh on context changes
+      handleLoadData(false); // Never force refresh on navigation
+    }
+  }, [apiLevel, selectedInstitute, selectedClass, selectedSubject]);
+
+  // Load data when filters change (without refresh)
+  useEffect(() => {
+    if (currentInstituteId && dataLoaded) {
       handleLoadData(false);
     }
-  }, [apiLevel, selectedInstitute, selectedClass, selectedSubject, searchTerm, statusFilter, typeFilter]);
+  }, [searchTerm, statusFilter, typeFilter]);
 
   const handleCreateLecture = async () => {
     setIsCreateDialogOpen(false);

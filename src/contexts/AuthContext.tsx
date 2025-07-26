@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { 
   User, 
@@ -12,7 +11,7 @@ import {
 } from './types/auth.types';
 import { loginUser, validateToken } from './utils/auth.api';
 import { mapUserData } from './utils/user.utils';
-import { instituteApi } from '@/api/institute.api';
+import { instituteApi, Institute as ApiInstitute } from '@/api/institute.api';
 import { apiCache } from '@/utils/apiCache';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,7 +43,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchUserInstitutes = async (userId: string, forceRefresh = false): Promise<Institute[]> => {
     try {
-      return await instituteApi.getUserInstitutes(userId, forceRefresh);
+      const apiInstitutes = await instituteApi.getUserInstitutes(userId, forceRefresh);
+      // Map ApiInstitute to AuthContext Institute type
+      return apiInstitutes.map((institute: ApiInstitute): Institute => ({
+        id: institute.id,
+        name: institute.name,
+        code: institute.code,
+        email: institute.email || '',
+        phone: institute.phone || '',
+        address: institute.address || '',
+        city: institute.city || '',
+        state: institute.state || '',
+        country: institute.country || '',
+        pinCode: institute.pinCode || '',
+        description: '', // Add default value for required field
+        isActive: institute.isActive,
+        createdAt: institute.createdAt,
+        updatedAt: institute.updatedAt,
+        imageUrl: institute.imageUrl
+      }));
     } catch (error) {
       console.error('Error fetching user institutes:', error);
       return [];

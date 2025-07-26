@@ -38,8 +38,8 @@ class CachedApiClient {
     return data;
   }
 
-  async post<T>(endpoint: string, body?: any, params?: Record<string, any>): Promise<T> {
-    const result = await apiClient.post<T>(endpoint, body, params);
+  async post<T>(endpoint: string, body?: any): Promise<T> {
+    const result = await apiClient.post<T>(endpoint, body);
     
     // Clear related cache entries when posting new data
     this.clearRelatedCache(endpoint);
@@ -47,8 +47,8 @@ class CachedApiClient {
     return result;
   }
 
-  async put<T>(endpoint: string, body?: any, params?: Record<string, any>): Promise<T> {
-    const result = await apiClient.put<T>(endpoint, body, params);
+  async put<T>(endpoint: string, body?: any): Promise<T> {
+    const result = await apiClient.put<T>(endpoint, body);
     
     // Clear related cache entries when updating data
     this.clearRelatedCache(endpoint);
@@ -56,8 +56,8 @@ class CachedApiClient {
     return result;
   }
 
-  async delete<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const result = await apiClient.delete<T>(endpoint, params);
+  async delete<T>(endpoint: string): Promise<T> {
+    const result = await apiClient.delete<T>(endpoint);
     
     // Clear related cache entries when deleting data
     this.clearRelatedCache(endpoint);
@@ -87,6 +87,12 @@ class CachedApiClient {
   // Method to force refresh data
   async refresh<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
     return this.get<T>(endpoint, params, { forceRefresh: true });
+  }
+
+  // Method to check if data exists in cache
+  hasCache(endpoint: string, params?: Record<string, any>): boolean {
+    const cachedData = apiCache.getCache(endpoint, params);
+    return cachedData !== null;
   }
 }
 
