@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 import { getBaseUrl2 } from '@/contexts/utils/auth.api';
 
@@ -72,38 +71,101 @@ export interface OrganizationLoginResponse {
 class OrganizationApiClient {
   private baseUrl = '/organization/api/v1';
 
+  private checkBaseUrl2(): string {
+    const baseUrl2 = getBaseUrl2();
+    if (!baseUrl2) {
+      console.warn('baseUrl2 not configured in localStorage. Organization features may not work properly.');
+      // For now, fall back to a mock URL or throw an error
+      throw new Error('Organization base URL not configured. Please set baseUrl2 in localStorage.');
+    }
+    return baseUrl2;
+  }
+
   async loginToOrganization(credentials: OrganizationLoginCredentials): Promise<OrganizationLoginResponse> {
-    const response = await apiClient.post<OrganizationLoginResponse>(`${this.baseUrl}/auth/login`, credentials);
-    return response;
+    try {
+      // Check if baseUrl2 is configured
+      this.checkBaseUrl2();
+      
+      // Switch to baseUrl2 for organization API calls
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.post<OrganizationLoginResponse>(`${this.baseUrl}/auth/login`, credentials);
+      return response;
+    } finally {
+      // Always switch back to baseUrl1 after organization calls
+      apiClient.setUseBaseUrl2(false);
+    }
   }
 
   async getUserEnrolledOrganizations(params?: OrganizationQueryParams): Promise<OrganizationResponse> {
-    const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations/user/enrolled`, params);
-    return response;
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations/user/enrolled`, params);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
   }
 
   async createOrganization(data: OrganizationCreateData): Promise<Organization> {
-    const response = await apiClient.post<Organization>(`${this.baseUrl}/organizations`, data);
-    return response;
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.post<Organization>(`${this.baseUrl}/organizations`, data);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
   }
 
   async getOrganizations(params?: OrganizationQueryParams): Promise<OrganizationResponse> {
-    const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations`, params);
-    return response;
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations`, params);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
   }
 
   async getOrganizationById(id: string): Promise<Organization> {
-    const response = await apiClient.get<Organization>(`${this.baseUrl}/organizations/${id}`);
-    return response;
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<Organization>(`${this.baseUrl}/organizations/${id}`);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
   }
 
   async updateOrganization(id: string, data: Partial<OrganizationCreateData>): Promise<Organization> {
-    const response = await apiClient.put<Organization>(`${this.baseUrl}/organizations/${id}`, data);
-    return response;
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.put<Organization>(`${this.baseUrl}/organizations/${id}`, data);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
   }
 
   async deleteOrganization(id: string): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/organizations/${id}`);
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      await apiClient.delete(`${this.baseUrl}/organizations/${id}`);
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
   }
 }
 

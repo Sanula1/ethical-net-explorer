@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Building2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationApi } from '@/api/organization.api';
-import { apiClient } from '@/api/client';
 
 interface OrganizationLoginProps {
   onLogin?: (loginResponse: any) => void;
@@ -36,9 +34,6 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
     setIsLoading(true);
     
     try {
-      // Switch to baseUrl2 for organization API calls
-      apiClient.setUseBaseUrl2(true);
-      
       const loginResponse = await organizationApi.loginToOrganization({ email, password });
       
       // Store organization access token
@@ -54,9 +49,15 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
       });
     } catch (error) {
       console.error('Organization login error:', error);
+      
+      let errorMessage = "Invalid credentials. Please try again.";
+      if (error instanceof Error && error.message.includes('Organization base URL not configured')) {
+        errorMessage = "Organization service is not configured. Please contact your administrator.";
+      }
+      
       toast({
         title: "Login Failed",
-        description: "Invalid credentials. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
