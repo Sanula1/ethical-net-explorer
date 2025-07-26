@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Building2, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationApi } from '@/api/organization.api';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface OrganizationLoginProps {
   onLogin?: (loginResponse: any) => void;
@@ -15,9 +17,19 @@ interface OrganizationLoginProps {
 const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [baseUrl2, setBaseUrl2] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Load existing baseUrl2 from localStorage
+    const existingBaseUrl2 = localStorage.getItem('baseUrl2');
+    if (existingBaseUrl2) {
+      setBaseUrl2(existingBaseUrl2);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +42,18 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
       });
       return;
     }
+
+    if (!baseUrl2) {
+      toast({
+        title: "Configuration Error",
+        description: "Please set the organization API base URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Save baseUrl2 to localStorage
+    localStorage.setItem('baseUrl2', baseUrl2);
 
     setIsLoading(true);
     
@@ -50,9 +74,13 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
     } catch (error) {
       console.error('Organization login error:', error);
       
-      let errorMessage = "Invalid credentials. Please try again.";
-      if (error instanceof Error && error.message.includes('Organization base URL not configured')) {
-        errorMessage = "Organization service is not configured. Please contact your administrator.";
+      let errorMessage = "Login failed. Please check your credentials and try again.";
+      if (error instanceof Error) {
+        if (error.message.includes('Mixed Content') || error.message.includes('Failed to fetch')) {
+          errorMessage = "Network error. Please check the API URL and ensure it uses HTTPS.";
+        } else if (error.message.includes('Organization base URL not configured')) {
+          errorMessage = "Please configure the organization API base URL.";
+        }
       }
       
       toast({
@@ -129,6 +157,36 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
                 </Button>
               </div>
             </div>
+
+            <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-sm text-muted-foreground"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Advanced Settings
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2">
+                <div className="space-y-2">
+                  <Label htmlFor="baseUrl2">Organization API Base URL</Label>
+                  <Input
+                    id="baseUrl2"
+                    type="url"
+                    placeholder="https://your-org-api.com"
+                    value={baseUrl2}
+                    onChange={(e) => setBaseUrl2(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The base URL for your organization's API endpoint
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <Button 
               type="submit" 

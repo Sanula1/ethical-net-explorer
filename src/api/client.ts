@@ -59,7 +59,11 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
       console.log('Bearer token added to request headers');
     } else {
-      console.warn('No bearer token found in localStorage');
+      // Only warn if not a login request (login requests don't need tokens)
+      const isLoginRequest = this.useBaseUrl2; // Organization login doesn't need existing token
+      if (!isLoginRequest) {
+        console.warn('No bearer token found in localStorage');
+      }
     }
 
     return headers;

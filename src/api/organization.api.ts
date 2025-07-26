@@ -74,9 +74,7 @@ class OrganizationApiClient {
   private checkBaseUrl2(): string {
     const baseUrl2 = getBaseUrl2();
     if (!baseUrl2) {
-      console.warn('baseUrl2 not configured in localStorage. Organization features may not work properly.');
-      // For now, fall back to a mock URL or throw an error
-      throw new Error('Organization base URL not configured. Please set baseUrl2 in localStorage.');
+      throw new Error('Organization base URL not configured. Please set baseUrl2 in the login form.');
     }
     return baseUrl2;
   }
