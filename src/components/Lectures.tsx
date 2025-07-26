@@ -107,9 +107,16 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
     }
 
     // Check if data exists in cache (only if not forcing refresh)
-    if (!forceRefresh && cachedApiClient.hasCache(endpoint, params)) {
-      console.log('Data already exists in cache, skipping API call');
-      return;
+    if (!forceRefresh) {
+      try {
+        const hasCache = await cachedApiClient.hasCache(endpoint, params);
+        if (hasCache) {
+          console.log('Data already exists in cache, skipping API call');
+          return;
+        }
+      } catch (error) {
+        console.warn('Error checking cache:', error);
+      }
     }
 
     setIsLoading(true);

@@ -1,5 +1,5 @@
 
-import { apiClient, ApiResponse } from './client';
+import { apiClient } from './client';
 import { apiCache } from '@/utils/apiCache';
 
 interface CachedRequestOptions {
@@ -9,6 +9,15 @@ interface CachedRequestOptions {
 }
 
 class CachedApiClient {
+  private async checkCacheAvailability(): Promise<boolean> {
+    try {
+      const stats = await apiCache.getCacheStats();
+      return stats.storageType !== 'memory' || true; // Even memory cache is better than no cache
+    } catch {
+      return false;
+    }
+  }
+
   async get<T>(
     endpoint: string, 
     params?: Record<string, any>, 
@@ -22,27 +31,39 @@ class CachedApiClient {
       return apiClient.get<T>(endpoint, params);
     }
 
-    // Try to get from cache first
-    const cachedData = apiCache.getCache<T>(endpoint, params, { forceRefresh, ttl });
-    if (cachedData && !forceRefresh) {
-      return cachedData;
+    // Check if caching is available
+    const cacheAvailable = await this.checkCacheAvailability();
+    if (!cacheAvailable) {
+      console.log(`Cache not available, making direct API call for ${endpoint}`);
+      return apiClient.get<T>(endpoint, params);
     }
 
-    // Make API call and cache the result
-    console.log(`Making API call for ${endpoint}:`, params);
-    const data = await apiClient.get<T>(endpoint, params);
-    
-    // Cache the response
-    apiCache.setCache(endpoint, data, params, ttl);
-    
-    return data;
+    try {
+      // Try to get from cache first
+      const cachedData = await apiCache.getCache<T>(endpoint, params, { forceRefresh, ttl });
+      if (cachedData && !forceRefresh) {
+        return cachedData;
+      }
+
+      // Make API call and cache the result
+      console.log(`Making API call for ${endpoint}:`, params);
+      const data = await apiClient.get<T>(endpoint, params);
+      
+      // Cache the response
+      await apiCache.setCache(endpoint, data, params, ttl);
+      
+      return data;
+    } catch (cacheError) {
+      console.warn('Cache operation failed, making direct API call:', cacheError);
+      return apiClient.get<T>(endpoint, params);
+    }
   }
 
   async post<T>(endpoint: string, body?: any): Promise<T> {
     const result = await apiClient.post<T>(endpoint, body);
     
     // Clear related cache entries when posting new data
-    this.clearRelatedCache(endpoint);
+    await this.clearRelatedCache(endpoint);
     
     return result;
   }
@@ -51,7 +72,7 @@ class CachedApiClient {
     const result = await apiClient.put<T>(endpoint, body);
     
     // Clear related cache entries when updating data
-    this.clearRelatedCache(endpoint);
+    await this.clearRelatedCache(endpoint);
     
     return result;
   }
@@ -60,28 +81,33 @@ class CachedApiClient {
     const result = await apiClient.delete<T>(endpoint);
     
     // Clear related cache entries when deleting data
-    this.clearRelatedCache(endpoint);
+    await this.clearRelatedCache(endpoint);
     
     return result;
   }
 
-  private clearRelatedCache(endpoint: string): void {
-    // Clear cache for list endpoints when individual items are modified
-    const patterns = [
-      '/institutes',
-      '/classes',
-      '/subjects',
-      '/homework',
-      '/lectures',
-      '/users'
-    ];
+  private async clearRelatedCache(endpoint: string): Promise<void> {
+    try {
+      // Clear cache for list endpoints when individual items are modified
+      const patterns = [
+        '/institutes',
+        '/classes',
+        '/subjects',
+        '/homework',
+        '/lectures',
+        '/users'
+      ];
 
-    patterns.forEach(pattern => {
-      if (endpoint.includes(pattern)) {
-        // Clear all cache entries that might be affected
-        apiCache.clearUserCache('*'); // This could be improved to be more specific
+      for (const pattern of patterns) {
+        if (endpoint.includes(pattern)) {
+          // Clear all cache entries that might be affected
+          await apiCache.clearUserCache('*'); // This could be improved to be more specific
+          break;
+        }
       }
-    });
+    } catch (error) {
+      console.warn('Failed to clear related cache:', error);
+    }
   }
 
   // Method to force refresh data
@@ -90,9 +116,18 @@ class CachedApiClient {
   }
 
   // Method to check if data exists in cache
-  hasCache(endpoint: string, params?: Record<string, any>): boolean {
-    const cachedData = apiCache.getCache(endpoint, params);
-    return cachedData !== null;
+  async hasCache(endpoint: string, params?: Record<string, any>): Promise<boolean> {
+    try {
+      const cachedData = await apiCache.getCache(endpoint, params);
+      return cachedData !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  // Method to get cache statistics
+  async getCacheStats() {
+    return apiCache.getCacheStats();
   }
 }
 
