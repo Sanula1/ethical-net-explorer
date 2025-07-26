@@ -1,5 +1,5 @@
 
-import { getBaseUrl, getBaseUrl2, getAuthToken } from '@/contexts/utils/auth.api';
+import { getBaseUrl, getBaseUrl2 } from '@/contexts/utils/auth.api';
 
 export interface ApiResponse<T = any> {
   data?: T;
@@ -36,17 +36,12 @@ class ApiClient {
   }
 
   private getHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
+    // With HttpOnly cookies, we don't need to manually add Authorization headers
+    // The browser automatically includes the HttpOnly cookie
+    return {
       'Content-Type': 'application/json',
       'ngrok-skip-browser-warning': 'true'
     };
-
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return headers;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -61,9 +56,9 @@ class ApiClient {
       
       // Handle authentication errors
       if (response.status === 401) {
-        console.warn('Authentication failed - redirecting to login');
-        // Clear stored token on auth failure
-        localStorage.removeItem('auth_token');
+        console.warn('Authentication failed - HttpOnly cookie may be invalid or expired');
+        // With HttpOnly cookies, we can't clear them from client-side
+        // The server should handle cookie clearing on logout
         // Optionally trigger logout or redirect to login
         window.location.href = '/';
       }
@@ -96,7 +91,7 @@ class ApiClient {
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: this.getHeaders(),
-      credentials: 'include' // Include cookies
+      credentials: 'include' // Include HttpOnly cookies automatically
     });
 
     return this.handleResponse<T>(response);
@@ -111,7 +106,7 @@ class ApiClient {
     const response = await fetch(url, {
       method: 'POST',
       headers: this.getHeaders(),
-      credentials: 'include', // Include cookies
+      credentials: 'include', // Include HttpOnly cookies automatically
       body: data ? JSON.stringify(data) : undefined
     });
 
@@ -127,7 +122,7 @@ class ApiClient {
     const response = await fetch(url, {
       method: 'PUT',
       headers: this.getHeaders(),
-      credentials: 'include', // Include cookies
+      credentials: 'include', // Include HttpOnly cookies automatically
       body: data ? JSON.stringify(data) : undefined
     });
 
@@ -143,7 +138,7 @@ class ApiClient {
     const response = await fetch(url, {
       method: 'PATCH',
       headers: this.getHeaders(),
-      credentials: 'include', // Include cookies
+      credentials: 'include', // Include HttpOnly cookies automatically
       body: data ? JSON.stringify(data) : undefined
     });
 
@@ -159,7 +154,7 @@ class ApiClient {
     const response = await fetch(url, {
       method: 'DELETE',
       headers: this.getHeaders(),
-      credentials: 'include' // Include cookies
+      credentials: 'include' // Include HttpOnly cookies automatically
     });
 
     return this.handleResponse<T>(response);

@@ -9,23 +9,11 @@ export const getBaseUrl2 = () => {
   return localStorage.getItem('baseUrl2') || '';
 };
 
-// Helper to get auth token (fallback to token from login response if cookie auth isn't working)
-export const getAuthToken = () => {
-  return localStorage.getItem('auth_token') || '';
-};
-
 export const getApiHeaders = () => {
-  const headers: Record<string, string> = {
+  return {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true'
   };
-
-  const token = getAuthToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  return headers;
 };
 
 export const loginUser = async (credentials: LoginCredentials): Promise<ApiResponse> => {
@@ -89,10 +77,8 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
   const loginData = await response.json();
   console.log('Login successful, received data:', loginData);
   
-  // Store the token for subsequent API calls
-  if (loginData.access_token) {
-    localStorage.setItem('auth_token', loginData.access_token);
-  }
+  // With HttpOnly cookies, we don't store the token manually
+  // The server sets the cookie automatically
   
   return loginData;
 };
@@ -134,8 +120,8 @@ export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> 
     
     const response = await fetch(`${baseUrl}/users/${userId}/institutes`, {
       method: 'GET',
-      headers: getApiHeaders(), // This now includes Authorization header
-      credentials: 'include' // Include cookies in request
+      headers: getApiHeaders(),
+      credentials: 'include' // Include cookies in request - HttpOnly cookie is sent automatically
     });
 
     if (response.ok) {
@@ -151,7 +137,7 @@ export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> 
       console.error('Failed to fetch institutes:', response.status, response.statusText);
       
       if (response.status === 401) {
-        console.warn('Unauthorized - token may be invalid');
+        console.warn('Unauthorized - HttpOnly cookie may be invalid or expired');
       }
     }
   } catch (error) {
@@ -163,7 +149,7 @@ export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> 
 export const validateToken = async () => {
   const baseUrl = getBaseUrl();
   
-  console.log('Validating token...');
+  console.log('Validating session via HttpOnly cookie...');
   
   // Try multiple endpoints since /auth/me might not exist
   const endpoints = ['/auth/me', '/users/me', '/auth/validate'];
@@ -172,13 +158,13 @@ export const validateToken = async () => {
     try {
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'GET',
-        headers: getApiHeaders(), // This now includes Authorization header
-        credentials: 'include' // Include cookies in request
+        headers: getApiHeaders(),
+        credentials: 'include' // Include cookies - HttpOnly cookie sent automatically
       });
 
       if (response.ok) {
         const userData = await response.json();
-        console.log('Token validation successful:', userData);
+        console.log('Session validation successful:', userData);
         return userData;
       }
     } catch (error) {
@@ -186,7 +172,7 @@ export const validateToken = async () => {
     }
   }
   
-  throw new Error('Token validation failed - no valid endpoint found');
+  throw new Error('Session validation failed - no valid endpoint found');
 };
 
 export const logoutUser = async () => {
@@ -200,7 +186,7 @@ export const logoutUser = async () => {
     });
     
     if (response.ok) {
-      console.log('Server logout successful');
+      console.log('Server logout successful - HttpOnly cookie cleared');
     } else {
       console.warn('Server logout failed, but proceeding with client logout');
     }
@@ -208,6 +194,6 @@ export const logoutUser = async () => {
     console.error('Error during server logout:', error);
   }
   
-  // Clear stored token
-  localStorage.removeItem('auth_token');
+  // No need to clear localStorage since we're not storing tokens manually
+  console.log('Logout complete');
 };
