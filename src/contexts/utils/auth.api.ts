@@ -9,11 +9,23 @@ export const getBaseUrl2 = () => {
   return localStorage.getItem('baseUrl2') || '';
 };
 
+// Helper to get auth token (fallback to token from login response if cookie auth isn't working)
+export const getAuthToken = () => {
+  return localStorage.getItem('auth_token') || '';
+};
+
 export const getApiHeaders = () => {
-  return {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true'
   };
+
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return headers;
 };
 
 export const loginUser = async (credentials: LoginCredentials): Promise<ApiResponse> => {
@@ -77,6 +89,11 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
   const loginData = await response.json();
   console.log('Login successful, received data:', loginData);
   
+  // Store the token for subsequent API calls
+  if (loginData.access_token) {
+    localStorage.setItem('auth_token', loginData.access_token);
+  }
+  
   return loginData;
 };
 
@@ -117,7 +134,7 @@ export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> 
     
     const response = await fetch(`${baseUrl}/users/${userId}/institutes`, {
       method: 'GET',
-      headers: getApiHeaders(),
+      headers: getApiHeaders(), // This now includes Authorization header
       credentials: 'include' // Include cookies in request
     });
 
@@ -146,22 +163,30 @@ export const fetchUserInstitutes = async (userId: string): Promise<Institute[]> 
 export const validateToken = async () => {
   const baseUrl = getBaseUrl();
   
-  console.log('Validating token via cookie...');
+  console.log('Validating token...');
   
-  const response = await fetch(`${baseUrl}/auth/me`, {
-    method: 'GET',
-    headers: getApiHeaders(),
-    credentials: 'include' // Include cookies in request
-  });
+  // Try multiple endpoints since /auth/me might not exist
+  const endpoints = ['/auth/me', '/users/me', '/auth/validate'];
+  
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: 'GET',
+        headers: getApiHeaders(), // This now includes Authorization header
+        credentials: 'include' // Include cookies in request
+      });
 
-  if (!response.ok) {
-    console.error('Token validation failed:', response.status, response.statusText);
-    throw new Error(`Token validation failed with status: ${response.status}`);
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('Token validation successful:', userData);
+        return userData;
+      }
+    } catch (error) {
+      console.log(`Endpoint ${endpoint} failed:`, error);
+    }
   }
-
-  const userData = await response.json();
-  console.log('Token validation successful:', userData);
-  return userData;
+  
+  throw new Error('Token validation failed - no valid endpoint found');
 };
 
 export const logoutUser = async () => {
@@ -182,4 +207,7 @@ export const logoutUser = async () => {
   } catch (error) {
     console.error('Error during server logout:', error);
   }
+  
+  // Clear stored token
+  localStorage.removeItem('auth_token');
 };

@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { 
   User, 
@@ -67,7 +66,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = async () => {
     console.log('Logging out user...');
     
-    // Call server logout to clear cookie
+    // Call server logout to clear cookie and stored token
     await logoutUser();
     
     // Clear client state

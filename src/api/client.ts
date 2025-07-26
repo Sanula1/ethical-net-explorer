@@ -1,5 +1,5 @@
 
-import { getBaseUrl, getBaseUrl2 } from '@/contexts/utils/auth.api';
+import { getBaseUrl, getBaseUrl2, getAuthToken } from '@/contexts/utils/auth.api';
 
 export interface ApiResponse<T = any> {
   data?: T;
@@ -36,10 +36,17 @@ class ApiClient {
   }
 
   private getHeaders(): Record<string, string> {
-    return {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'ngrok-skip-browser-warning': 'true'
     };
+
+    const token = getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
@@ -55,6 +62,8 @@ class ApiClient {
       // Handle authentication errors
       if (response.status === 401) {
         console.warn('Authentication failed - redirecting to login');
+        // Clear stored token on auth failure
+        localStorage.removeItem('auth_token');
         // Optionally trigger logout or redirect to login
         window.location.href = '/';
       }
