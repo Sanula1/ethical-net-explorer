@@ -1,5 +1,5 @@
-
-import { apiClient, ApiResponse } from './client';
+import { cachedApiClient } from './cachedClient';
+import { ApiResponse } from './client';
 
 export interface Lecture {
   id: string;
@@ -60,35 +60,61 @@ export interface LectureQueryParams {
 }
 
 class LectureApi {
-  async getLectures(params?: LectureQueryParams): Promise<ApiResponse<Lecture[]>> {
-    console.log('Fetching lectures with params:', params);
-    return apiClient.get<ApiResponse<Lecture[]>>('/institute-class-subject-lectures', params);
+  async getLectures(params?: LectureQueryParams, forceRefresh = false): Promise<ApiResponse<Lecture[]>> {
+    console.log('Fetching lectures with enhanced caching:', params, { forceRefresh });
+    return cachedApiClient.get<ApiResponse<Lecture[]>>('/institute-class-subject-lectures', params, {
+      forceRefresh,
+      ttl: 10, // Cache lectures for 10 minutes (they change frequently)
+      useStaleWhileRevalidate: true
+    });
   }
 
-  async getInstituteLectures(params?: LectureQueryParams): Promise<ApiResponse<Lecture[]>> {
-    console.log('Fetching institute lectures with params:', params);
-    return apiClient.get<ApiResponse<Lecture[]>>('/institute-lectures', params);
+  async getInstituteLectures(params?: LectureQueryParams, forceRefresh = false): Promise<ApiResponse<Lecture[]>> {
+    console.log('Fetching institute lectures with enhanced caching:', params, { forceRefresh });
+    return cachedApiClient.get<ApiResponse<Lecture[]>>('/institute-lectures', params, {
+      forceRefresh,
+      ttl: 10,
+      useStaleWhileRevalidate: true
+    });
   }
 
-  async getLectureById(id: string): Promise<Lecture> {
-    console.log('Fetching lecture by ID:', id);
-    return apiClient.get<Lecture>(`/institute-class-subject-lectures/${id}`);
+  async getLectureById(id: string, forceRefresh = false): Promise<Lecture> {
+    console.log('Fetching lecture by ID with caching:', id, { forceRefresh });
+    return cachedApiClient.get<Lecture>(`/institute-class-subject-lectures/${id}`, undefined, {
+      forceRefresh,
+      ttl: 10
+    });
   }
 
   async createLecture(data: LectureCreateData, isInstituteLecture: boolean = false): Promise<Lecture> {
     const endpoint = isInstituteLecture ? '/institute-lectures' : '/institute-class-subject-lectures';
     console.log('Creating lecture:', endpoint, data);
-    return apiClient.post<Lecture>(endpoint, data);
+    return cachedApiClient.post<Lecture>(endpoint, data);
   }
 
   async updateLecture(id: string, data: Partial<LectureCreateData>): Promise<Lecture> {
     console.log('Updating lecture:', id, data);
-    return apiClient.patch<Lecture>(`/institute-class-subject-lectures/${id}`, data);
+    return cachedApiClient.patch<Lecture>(`/institute-class-subject-lectures/${id}`, data);
   }
 
   async deleteLecture(id: string): Promise<void> {
     console.log('Deleting lecture:', id);
-    return apiClient.delete<void>(`/institute-class-subject-lectures/${id}`);
+    return cachedApiClient.delete<void>(`/institute-class-subject-lectures/${id}`);
+  }
+
+  // Method to check if lectures are cached
+  async hasLecturesCached(params?: LectureQueryParams): Promise<boolean> {
+    return cachedApiClient.hasCache('/institute-class-subject-lectures', params);
+  }
+
+  // Method to get cached lectures only
+  async getCachedLectures(params?: LectureQueryParams): Promise<ApiResponse<Lecture[]> | null> {
+    return cachedApiClient.getCachedOnly<ApiResponse<Lecture[]>>('/institute-class-subject-lectures', params);
+  }
+
+  // Method to preload lecture data
+  async preloadLectures(params?: LectureQueryParams): Promise<void> {
+    await cachedApiClient.preload<ApiResponse<Lecture[]>>('/institute-class-subject-lectures', params, 10);
   }
 }
 

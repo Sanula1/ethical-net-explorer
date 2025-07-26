@@ -71,7 +71,8 @@ class InstituteApi {
     
     return cachedApiClient.get<Institute[]>(endpoint, undefined, { 
       forceRefresh,
-      ttl: 60 // Cache for 1 hour since institutes don't change often
+      ttl: 120, // Cache for 2 hours since institutes don't change often
+      useStaleWhileRevalidate: true
     });
   }
 
@@ -86,7 +87,8 @@ class InstituteApi {
     
     return cachedApiClient.get<ApiResponse<Class[]>>(endpoint, requestParams, { 
       forceRefresh,
-      ttl: 30 // Cache for 30 minutes
+      ttl: 60, // Cache for 1 hour
+      useStaleWhileRevalidate: true
     });
   }
 
@@ -103,7 +105,8 @@ class InstituteApi {
     
     return cachedApiClient.get<any[]>(endpoint, undefined, { 
       forceRefresh,
-      ttl: 30 // Cache for 30 minutes
+      ttl: 60, // Cache for 1 hour
+      useStaleWhileRevalidate: true
     });
   }
 
@@ -120,26 +123,119 @@ class InstituteApi {
     
     return cachedApiClient.get<ApiResponse<any[]>>(endpoint, params, { 
       forceRefresh,
-      ttl: 15 // Cache for 15 minutes since user data changes more frequently
+      ttl: 30, // Cache for 30 minutes since user data changes more frequently
+      useStaleWhileRevalidate: true
     });
   }
 
+  // Enhanced method to check if data is already cached
+  async hasInstituteDataCached(userId: string, instituteId?: string): Promise<{
+    institutes: boolean;
+    classes: boolean;
+    subjects: boolean;
+    users: boolean;
+  }> {
+    const results = {
+      institutes: false,
+      classes: false,
+      subjects: false,
+      users: false
+    };
+
+    try {
+      // Check if institutes are cached
+      results.institutes = await cachedApiClient.hasCache(`/users/${userId}/institutes`);
+
+      if (instituteId) {
+        // Check if classes are cached
+        results.classes = await cachedApiClient.hasCache('/institute-classes', { instituteId });
+
+        // Check if subjects are cached
+        results.subjects = await cachedApiClient.hasCache(`/institute-class-subjects/institute/${instituteId}`);
+
+        // Check if users are cached
+        results.users = await cachedApiClient.hasCache('/institute-users', { instituteId });
+      }
+    } catch (error) {
+      console.warn('Error checking cached data:', error);
+    }
+
+    return results;
+  }
+
+  // Method to get all cached data without API calls
+  async getCachedInstituteData(userId: string, instituteId?: string): Promise<{
+    institutes: Institute[] | null;
+    classes: ApiResponse<Class[]> | null;
+    subjects: any[] | null;
+    users: ApiResponse<any[]> | null;
+  }> {
+    const data = {
+      institutes: null as Institute[] | null,
+      classes: null as ApiResponse<Class[]> | null,
+      subjects: null as any[] | null,
+      users: null as ApiResponse<any[]> | null
+    };
+
+    try {
+      // Get cached institutes
+      data.institutes = await cachedApiClient.getCachedOnly<Institute[]>(`/users/${userId}/institutes`);
+
+      if (instituteId) {
+        // Get cached classes
+        data.classes = await cachedApiClient.getCachedOnly<ApiResponse<Class[]>>('/institute-classes', { instituteId });
+
+        // Get cached subjects
+        data.subjects = await cachedApiClient.getCachedOnly<any[]>(`/institute-class-subjects/institute/${instituteId}`);
+
+        // Get cached users
+        data.users = await cachedApiClient.getCachedOnly<ApiResponse<any[]>>('/institute-users', { instituteId });
+      }
+    } catch (error) {
+      console.warn('Error getting cached institute data:', error);
+    }
+
+    return data;
+  }
+
+  // Method to preload all institute data
+  async preloadInstituteData(userId: string, instituteIds: string[]): Promise<void> {
+    try {
+      console.log('Preloading institute data for institutes:', instituteIds);
+
+      // Preload user institutes first
+      await cachedApiClient.preload<Institute[]>(`/users/${userId}/institutes`, undefined, 120);
+
+      // Preload data for each institute
+      const preloadPromises = instituteIds.map(async (instituteId) => {
+        await Promise.all([
+          cachedApiClient.preload('/institute-classes', { instituteId }, 60),
+          cachedApiClient.preload(`/institute-class-subjects/institute/${instituteId}`, undefined, 60),
+          cachedApiClient.preload('/institute-users', { instituteId }, 30)
+        ]);
+      });
+
+      await Promise.allSettled(preloadPromises);
+      console.log('Institute data preloading completed');
+    } catch (error) {
+      console.warn('Error preloading institute data:', error);
+    }
+  }
+
   // Method to force refresh all institute data
-  async refreshInstituteData(userId: string, instituteId?: string): Promise<void> {
-    console.log('Force refreshing institute data...', { userId, instituteId });
+  async refreshAllInstituteData(userId: string, instituteId?: string): Promise<void> {
+    console.log('Force refreshing all institute data...', { userId, instituteId });
     
     // Refresh user institutes
     await this.getUserInstitutes(userId, true);
     
     if (instituteId) {
-      // Refresh classes for the institute
-      await this.getInstituteClasses(instituteId, undefined, true);
-      
-      // Refresh subjects for the institute
-      await this.getInstituteClassSubjects(instituteId, undefined, true);
-      
-      // Refresh users for the institute
-      await this.getInstituteUsers(instituteId, undefined, true);
+      // Refresh all data for the institute in parallel
+      await Promise.all([
+        this.getInstituteClasses(instituteId, undefined, true),
+        this.getInstituteClassSubjects(instituteId, undefined, true),
+        this.getInstituteUsers(instituteId, undefined, true)
+      ]);
     }
   }
 }

@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { 
   User, 
@@ -10,9 +9,9 @@ import {
   LoginCredentials, 
   AuthContextType 
 } from './types/auth.types';
-import { loginUser, validateToken } from './utils/auth.api';
+import { loginUser, validateToken, getBaseUrl } from './utils/auth.api';
 import { mapUserData } from './utils/user.utils';
-import { instituteApi, Institute as ApiInstitute } from '@/api/institute.api';
+import { Institute as ApiInstitute } from '@/api/institute.api';
 import { cachedApiClient } from '@/api/cachedClient';
 import { apiCache } from '@/utils/apiCache';
 
@@ -43,28 +42,76 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentChildId, setCurrentChildId] = useState<string | null>(null);
   const [currentOrganizationId, setCurrentOrganizationId] = useState<string | null>(null);
 
+  // Cache preloading for better performance
+  const preloadDataForUser = async (userId: string, institutes: Institute[]) => {
+    try {
+      console.log('Preloading data for user:', userId);
+      
+      // Preload data for each institute
+      const preloadPromises = institutes.map(async (institute) => {
+        try {
+          // Preload classes for this institute
+          await cachedApiClient.preload(
+            '/institute-classes',
+            { instituteId: institute.id },
+            60 // 1 hour cache
+          );
+
+          // Preload subjects for this institute
+          await cachedApiClient.preload(
+            `/institute-class-subjects/institute/${institute.id}`,
+            undefined,
+            60 // 1 hour cache
+          );
+
+          // Preload users for this institute
+          await cachedApiClient.preload(
+            '/institute-users',
+            { instituteId: institute.id },
+            30 // 30 minutes cache
+          );
+        } catch (error) {
+          console.warn(`Failed to preload data for institute ${institute.id}:`, error);
+        }
+      });
+
+      await Promise.allSettled(preloadPromises);
+      console.log('Data preloading completed');
+    } catch (error) {
+      console.warn('Error during data preloading:', error);
+    }
+  };
+
   const fetchUserInstitutes = async (userId: string, forceRefresh = false): Promise<Institute[]> => {
     try {
-      console.log('Fetching user institutes with caching:', { userId, forceRefresh });
+      console.log('Fetching user institutes with enhanced caching:', { userId, forceRefresh });
       
-      // Use cached API client which handles proper base URL
+      // Use enhanced caching with longer TTL for institutes
       const apiInstitutes = await cachedApiClient.get<ApiInstitute[]>(
         `/users/${userId}/institutes`, 
         undefined, 
         { 
           forceRefresh,
-          ttl: 60 // Cache for 1 hour since institutes don't change often
+          ttl: 120, // Cache for 2 hours since institutes don't change often
+          useStaleWhileRevalidate: true // Return stale data while refreshing
         }
       );
       
       // Map ApiInstitute to AuthContext Institute type
-      return apiInstitutes.map((institute: ApiInstitute): Institute => ({
+      const institutes = apiInstitutes.map((institute: ApiInstitute): Institute => ({
         id: institute.id,
         name: institute.name,
         code: institute.code,
         description: '', // Add default value for required field
         isActive: institute.isActive
       }));
+
+      // Preload related data in background
+      if (!forceRefresh) {
+        setTimeout(() => preloadDataForUser(userId, institutes), 500);
+      }
+
+      return institutes;
     } catch (error) {
       console.error('Error fetching user institutes:', error);
       return [];
@@ -75,10 +122,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoading(true);
     try {
       console.log('Starting login process...');
+      
+      // Use getBaseUrl() instead of hardcoded localhost
+      const baseUrl = getBaseUrl();
+      console.log('Using base URL for login:', baseUrl);
+      
       const data = await loginUser(credentials);
       console.log('Login response received:', data);
 
-      // Fetch user institutes with caching - don't force refresh on login
+      // Fetch user institutes with enhanced caching - don't force refresh on login
       const institutes = await fetchUserInstitutes(data.user.id, false);
       
       const mappedUser = mapUserData(data.user, institutes);
@@ -96,8 +148,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     console.log('Logging out user...');
     setUser(null);
     
-    // Clear all cache when logging out
+    // Clear all cache and pending requests when logging out
     apiCache.clearAllCache();
+    cachedApiClient.clearPendingRequests();
     
     setSelectedInstituteState(null);
     setSelectedClassState(null);
@@ -121,6 +174,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSelectedSubjectState(null);
     setCurrentClassId(null);
     setCurrentSubjectId(null);
+
+    // Preload data for the new institute
+    if (institute && user) {
+      setTimeout(() => preloadDataForUser(user.id, [institute]), 100);
+    }
   };
 
   const setSelectedClass = (classData: Class | null) => {
@@ -130,6 +188,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Clear subject when class changes
     setSelectedSubjectState(null);
     setCurrentSubjectId(null);
+
+    // Preload subjects for this class if available
+    if (classData && currentInstituteId) {
+      setTimeout(async () => {
+        try {
+          await cachedApiClient.preload(
+            `/institute-class-subjects/institute/${currentInstituteId}/class/${classData.id}`,
+            undefined,
+            60
+          );
+        } catch (error) {
+          console.warn('Failed to preload class subjects:', error);
+        }
+      }, 100);
+    }
   };
 
   const setSelectedSubject = (subject: Subject | null) => {
@@ -147,28 +220,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setCurrentOrganizationId(organization?.id || null);
   };
 
-  // Method to refresh all data
+  // Enhanced method to refresh all data
   const refreshUserData = async (forceRefresh = true) => {
     if (!user) return;
     
-    console.log('Refreshing user data...', { forceRefresh });
+    console.log('Refreshing user data with enhanced caching...', { forceRefresh });
     setIsLoading(true);
     
     try {
+      // Clear pending requests to avoid conflicts
+      cachedApiClient.clearPendingRequests();
+      
       // Refresh institutes
       const institutes = await fetchUserInstitutes(user.id, forceRefresh);
       const mappedUser = mapUserData(user, institutes);
       setUser(mappedUser);
-      
-      // If there's a selected institute, refresh its data too
-      if (currentInstituteId) {
-        // Force refresh institute-specific data
-        await cachedApiClient.get(
-          `/institute-classes`,
-          { instituteId: currentInstituteId },
-          { forceRefresh: true, ttl: 30 }
-        );
-      }
       
       console.log('User data refreshed successfully');
     } catch (error) {
@@ -184,7 +250,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.log('Validating existing token...');
         const data = await validateToken();
         
-        // Don't force refresh on token validation - use cache if available
+        // Don't force refresh on token validation - use enhanced cache
         const institutes = await fetchUserInstitutes(data.id, false);
         const mappedUser = mapUserData(data, institutes);
         setUser(mappedUser);
