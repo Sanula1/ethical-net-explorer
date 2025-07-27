@@ -41,6 +41,22 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state and user role
   const getMenuItems = () => {
+    // Check if user is logged into organization system
+    const isLoggedIntoOrg = localStorage.getItem('org_access_token');
+    
+    // For InstituteAdmin, Student, Teacher roles when logged into organization
+    if (isLoggedIntoOrg && (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher')) {
+      return [
+        {
+          id: 'select-organization',
+          label: 'Select Organization',
+          icon: Building2,
+          permission: 'view-organizations',
+          alwaysShow: true
+        }
+      ];
+    }
+    
     // For InstituteAdmin, Student, Teacher roles - show only Select Institute and Organizations
     if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
       return [
@@ -61,10 +77,22 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       ];
     }
 
+    // For OrganizationManager role when logged into organization
+    if (isLoggedIntoOrg && user?.role === 'OrganizationManager') {
+      return [
+        {
+          id: 'select-organization',
+          label: 'Select Organization',
+          icon: Building2,
+          permission: 'view-organizations',
+          alwaysShow: true
+        }
+      ];
+    }
+
     // For OrganizationManager role
     if (user?.role === 'OrganizationManager') {
-      // If they have logged into organization system, show Organizations, Lectures, and Causes in main menu
-      const baseOrgItems = [
+      return [
         {
           id: 'organizations',
           label: 'Organizations',
@@ -87,8 +115,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           alwaysShow: true
         }
       ];
-      
-      return baseOrgItems;
     }
 
     // For other roles (SystemAdmin, etc.) - keep existing logic
@@ -336,6 +362,29 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
   ];
 
   const getSettingsItems = () => {
+    // Check if user is logged into organization system
+    const isLoggedIntoOrg = localStorage.getItem('org_access_token');
+    
+    // For InstituteAdmin, Student, Teacher roles when logged into organization - show only Profile and Appearance
+    if (isLoggedIntoOrg && (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher')) {
+      return [
+        {
+          id: 'profile',
+          label: 'Profile',
+          icon: User,
+          permission: 'view-profile',
+          alwaysShow: true
+        },
+        {
+          id: 'appearance',
+          label: 'Appearance',
+          icon: Palette,
+          permission: 'view-appearance',
+          alwaysShow: true
+        }
+      ];
+    }
+
     // For InstituteAdmin, Student, Teacher roles - show only Profile and Appearance
     if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
       return [
@@ -576,8 +625,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance, courses, lectures, causes and academic sections if institute is selected and not OrganizationManager and not InstituteAdmin/Student/Teacher */}
-            {selectedInstitute && user?.role !== 'OrganizationManager' && user?.role !== 'InstituteAdmin' && user?.role !== 'Student' && user?.role !== 'Teacher' && (
+            {/* Only show attendance, courses, lectures, causes and academic sections if institute is selected and not special roles */}
+            {selectedInstitute && user?.role !== 'OrganizationManager' && user?.role !== 'InstituteAdmin' && user?.role !== 'Student' && user?.role !== 'Teacher' && !localStorage.getItem('org_access_token') && (
               <>
                 <SidebarSection title="Attendance" items={attendanceItems} />
                 <SidebarSection title="Courses" items={coursesItems} />

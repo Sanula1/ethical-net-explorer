@@ -3,10 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, Target, Shield } from 'lucide-react';
+import { Loader2, Users, Target, Shield, Plus } from 'lucide-react';
 import { organizationApi, Organization, OrganizationQueryParams } from '@/api/organization.api';
+import { useAuth } from '@/contexts/AuthContext';
 
-export const OrganizationSelector: React.FC = () => {
+interface OrganizationSelectorProps {
+  onCreateClick?: () => void;
+}
+
+export const OrganizationSelector: React.FC<OrganizationSelectorProps> = ({ onCreateClick }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,22 +23,35 @@ export const OrganizationSelector: React.FC = () => {
     hasNext: false,
     hasPrev: false
   });
+  const { user } = useAuth();
 
-  const fetchEnrolledOrganizations = async (params: OrganizationQueryParams = {}) => {
+  const fetchOrganizations = async (params: OrganizationQueryParams = {}) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await organizationApi.getUserEnrolledOrganizations({
-        page: 1,
-        limit: 10,
-        ...params
-      });
+      let response;
+      
+      // For InstituteAdmin, Student, Teacher roles - fetch enrolled organizations
+      if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
+        response = await organizationApi.getUserEnrolledOrganizations({
+          page: 1,
+          limit: 10,
+          ...params
+        });
+      } else {
+        // For other roles (like OrganizationManager) - fetch all organizations
+        response = await organizationApi.getOrganizations({
+          page: 1,
+          limit: 10,
+          ...params
+        });
+      }
       
       setOrganizations(response.data);
       setPagination(response.pagination);
     } catch (err) {
-      console.error('Error fetching enrolled organizations:', err);
+      console.error('Error fetching organizations:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch organizations');
     } finally {
       setIsLoading(false);
@@ -41,8 +59,8 @@ export const OrganizationSelector: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchEnrolledOrganizations();
-  }, []);
+    fetchOrganizations();
+  }, [user?.role]);
 
   const handleSelectOrganization = (org: Organization) => {
     // Store selected organization in localStorage or context
@@ -52,7 +70,7 @@ export const OrganizationSelector: React.FC = () => {
   };
 
   const handlePageChange = (newPage: number) => {
-    fetchEnrolledOrganizations({ page: newPage, limit: pagination.limit });
+    fetchOrganizations({ page: newPage, limit: pagination.limit });
   };
 
   if (isLoading) {
@@ -68,21 +86,35 @@ export const OrganizationSelector: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <p className="text-red-500 mb-4">Error: {error}</p>
-        <Button onClick={() => fetchEnrolledOrganizations()}>
+        <Button onClick={() => fetchOrganizations()}>
           Try Again
         </Button>
       </div>
     );
   }
 
+  const isEnrolledView = user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher';
+
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Select Organization</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">
+          {isEnrolledView ? 'My Organizations' : 'Organizations'}
+        </h1>
+        {!isEnrolledView && onCreateClick && (
+          <Button onClick={onCreateClick}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Organization
+          </Button>
+        )}
+      </div>
       
       {organizations.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
-            <p className="text-center text-gray-500">No organizations found</p>
+            <p className="text-center text-gray-500">
+              {isEnrolledView ? 'No enrolled organizations found' : 'No organizations found'}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -107,7 +139,9 @@ export const OrganizationSelector: React.FC = () => {
                     </CardDescription>
                   </div>
                   <div className="text-right text-sm text-gray-500">
-                    <p>Role: <span className="font-medium">{org.userRole}</span></p>
+                    {org.userRole && (
+                      <p>Role: <span className="font-medium">{org.userRole}</span></p>
+                    )}
                     {org.joinedAt && (
                       <p>Joined: {new Date(org.joinedAt).toLocaleDateString()}</p>
                     )}

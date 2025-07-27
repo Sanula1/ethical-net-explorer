@@ -1,437 +1,182 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
-import Dashboard from '@/components/Dashboard';
-import Users from '@/components/Users';
-import Students from '@/components/Students';
-import Teachers from '@/components/Teachers';
-import Parents from '@/components/Parents';
-import Grades from '@/components/Grades';
-import Classes from '@/components/Classes';
-import Subjects from '@/components/Subjects';
-import Institutes from '@/components/Institutes';
-import Grading from '@/components/Grading';
-import Attendance from '@/components/Attendance';
-import AttendanceMarking from '@/components/AttendanceMarking';
-import AttendanceMarkers from '@/components/AttendanceMarkers';
-import QRAttendance from '@/components/QRAttendance';
-import Lectures from '@/components/Lectures';
-import LiveLectures from '@/components/LiveLectures';
-import Homework from '@/components/Homework';
-import Exams from '@/components/Exams';
-import Results from '@/components/Results';
-import Profile from '@/components/Profile';
-import InstituteDetails from '@/components/InstituteDetails';
-import Login from '@/components/Login';
-import InstituteSelector from '@/components/InstituteSelector';
-import ClassSelector from '@/components/ClassSelector';
-import SubjectSelector from '@/components/SubjectSelector';
-import ParentChildrenSelector from '@/components/ParentChildrenSelector';
-import Organizations from '@/components/Organizations';
-import Gallery from '@/components/Gallery';
-import Settings from '@/components/Settings';
-import Appearance from '@/components/Appearance';
+import Sidebar from '@/components/layout/Sidebar';
 import OrganizationLogin from '@/components/OrganizationLogin';
-import OrganizationSidebar from '@/components/OrganizationSidebar';
+import { OrganizationSelector } from '@/components/OrganizationSelector';
+import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
+import Dashboard from './Dashboard';
 
 const AppContent = () => {
-  const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild } = useAuth();
+  const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [organizationLoginData, setOrganizationLoginData] = useState<any>(null);
-  const [isInOrganizationMode, setIsInOrganizationMode] = useState(false);
+  const [showOrganizationLogin, setShowOrganizationLogin] = useState(false);
+  const [showCreateOrganization, setShowCreateOrganization] = useState(false);
+  const [isLoggedIntoOrg, setIsLoggedIntoOrg] = useState(!!localStorage.getItem('org_access_token'));
 
-  const handleMenuClick = () => {
+  const handleSidebarToggle = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  const handleSidebarClose = () => {
-    setIsSidebarOpen(false);
-  };
-
   const handleOrganizationLogin = (loginResponse: any) => {
-    console.log('Organization login successful:', loginResponse);
-    setOrganizationLoginData(loginResponse);
-    setIsInOrganizationMode(true);
-    setCurrentPage('select-organization');
+    setIsLoggedIntoOrg(true);
+    setShowOrganizationLogin(false);
+    
+    // For InstituteAdmin, Student, Teacher roles - go to select organization
+    if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
+      setCurrentPage('select-organization');
+    } else {
+      // For OrganizationManager - go to organizations page
+      setCurrentPage('organizations');
+    }
   };
 
-  const handleBackToMain = () => {
-    setOrganizationLoginData(null);
-    setIsInOrganizationMode(false);
-    setCurrentPage('dashboard');
+  const handleBackFromOrganizationLogin = () => {
+    setShowOrganizationLogin(false);
+    setCurrentPage('organizations');
   };
 
-  const renderComponent = () => {
-    // Handle organization login for InstituteAdmin, Student, Teacher
-    if (currentPage === 'organizations' && (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher')) {
-      if (!isInOrganizationMode) {
+  const handleCreateOrganization = () => {
+    setShowCreateOrganization(true);
+  };
+
+  const handleCreateOrganizationSuccess = () => {
+    setShowCreateOrganization(false);
+    setCurrentPage('organizations');
+  };
+
+  const handleCreateOrganizationCancel = () => {
+    setShowCreateOrganization(false);
+  };
+
+  const handlePageChange = (page: string) => {
+    if (page === 'organizations') {
+      // Check if user needs to login to organization system
+      if ((user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher' || user?.role === 'OrganizationManager') && !isLoggedIntoOrg) {
+        setShowOrganizationLogin(true);
+        return;
+      }
+    }
+    setCurrentPage(page);
+  };
+
+  // Show organization login form
+  if (showOrganizationLogin) {
+    return (
+      <OrganizationLogin 
+        onLogin={handleOrganizationLogin}
+        onBack={handleBackFromOrganizationLogin}
+      />
+    );
+  }
+
+  // Show create organization form
+  if (showCreateOrganization) {
+    return (
+      <CreateOrganizationForm 
+        onSuccess={handleCreateOrganizationSuccess}
+        onCancel={handleCreateOrganizationCancel}
+      />
+    );
+  }
+
+  const renderContent = () => {
+    switch (currentPage) {
+      case 'organizations':
         return (
-          <OrganizationLogin
-            onLogin={handleOrganizationLogin}
-            onBack={handleBackToMain}
+          <OrganizationSelector 
+            onCreateClick={user?.role === 'OrganizationManager' ? handleCreateOrganization : undefined}
           />
         );
-      }
-    }
-
-    // System Admin doesn't need institute/class/subject selection flow
-    if (user?.role === 'SystemAdmin') {
-      switch (currentPage) {
-        case 'dashboard':
-          return <Dashboard />;
-        case 'users':
-          return <Users />;
-        case 'students':
-          return <Students />;
-        case 'teachers':
-          return <Teachers />;
-        case 'parents':
-          return <Parents />;
-        case 'grades':
-          return <Grades />;
-        case 'classes':
-          return <Classes apiLevel="institute" />;
-        case 'subjects':
-          return <Subjects apiLevel="institute" />;
-        case 'institutes':
-          return <Institutes />;
-        case 'grading':
-        case 'grades-table':
-        case 'create-grade':
-        case 'assign-grade-classes':
-        case 'view-grade-classes':
-          return <Grading />;
-        case 'attendance':
-          return <Attendance />;
-        case 'attendance-marking':
-          return <AttendanceMarking onNavigate={setCurrentPage} />;
-        case 'attendance-markers':
-          return <AttendanceMarkers />;
-        case 'qr-attendance':
-          return <QRAttendance />;
-        case 'lectures':
-          return <Lectures />;
-        case 'live-lectures':
-          return <LiveLectures />;
-        case 'homework':
-          return <Homework />;
-        case 'exams':
-          return <Exams />;
-        case 'results':
-          return <Results />;
-        case 'profile':
-          return <Profile />;
-        case 'institute-details':
-          return <InstituteDetails />;
-        case 'appearance':
-          return <Appearance />;
-        default:
-          return <Dashboard />;
-      }
-    }
-
-    // For Student role - simplified interface
-    if (user?.role === 'Student') {
-      if (!selectedInstitute && user.institutes.length === 1) {
-        // Auto-select the only institute available
-        // This should be handled by the auth context
-      }
-      
-      if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
-        return <InstituteSelector />;
-      }
-
-      switch (currentPage) {
-        case 'dashboard':
-          return <Dashboard />;
-        case 'organizations':
-          return <Organizations />;
-        case 'attendance':
-          return <Attendance />;
-        case 'lectures':
-          return <Lectures />;
-        case 'homework':
-          return <Homework />;
-        case 'exams':
-          return <Exams />;
-        case 'results':
-          return <Results />;
-        case 'profile':
-          return <Profile />;
-        case 'select-institute':
-          return <InstituteSelector />;
-        case 'appearance':
-          return <Appearance />;
-        case 'select-organization':
-          return <div className="p-6"><h2 className="text-2xl font-bold">Select Organization</h2><p>Organization selection coming soon...</p></div>;
-        default:
-          return <Dashboard />;
-      }
-    }
-
-    // For Parent role
-    if (user?.role === 'Parent') {
-      if (currentPage === 'parent-children') {
-        return <ParentChildrenSelector />;
-      }
-
-      if (!selectedChild && currentPage !== 'parent-children' && currentPage !== 'profile') {
-        return <ParentChildrenSelector />;
-      }
-
-      switch (currentPage) {
-        case 'dashboard':
-          return <Dashboard />;
-        case 'attendance':
-          return <Attendance />;
-        case 'homework':
-          return <Homework />;
-        case 'results':
-          return <Results />;
-        case 'exams':
-          return <Exams />;
-        case 'profile':
-          return <Profile />;
-        case 'parent-children':
-          return <ParentChildrenSelector />;
-        case 'appearance':
-          return <Appearance />;
-        default:
-          return <ParentChildrenSelector />;
-      }
-    }
-
-    // For Teacher role
-    if (user?.role === 'Teacher') {
-      if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
-        return <InstituteSelector />;
-      }
-
-      if (currentPage === 'select-class') {
-        return <ClassSelector />;
-      }
-
-      if (currentPage === 'select-subject') {
-        return <SubjectSelector />;
-      }
-
-      const classRequiredPages = ['attendance-marking', 'grading'];
-      if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
-        return <ClassSelector />;
-      }
-
-      const subjectRequiredPages = ['lectures'];
-      if (selectedClass && !selectedSubject && subjectRequiredPages.includes(currentPage)) {
-        return <SubjectSelector />;
-      }
-
-      switch (currentPage) {
-        case 'dashboard':
-          return <Dashboard />;
-        case 'organizations':
-          return <Organizations />;
-        case 'students':
-          return <Students />;
-        case 'parents':
-          return <Parents />;
-        case 'classes':
-          return <Classes apiLevel="institute" />;
-        case 'subjects':
-          return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
-        case 'select-institute':
-          return <InstituteSelector />;
-        case 'grading':
-        case 'grades-table':
-        case 'create-grade':
-        case 'assign-grade-classes':
-        case 'view-grade-classes':
-          return <Grading />;
-        case 'attendance':
-          return <Attendance />;
-        case 'attendance-marking':
-          return <AttendanceMarking onNavigate={setCurrentPage} />;
-        case 'lectures':
-          return <Lectures />;
-        case 'homework':
-          return <Homework />;
-        case 'exams':
-          return <Exams />;
-        case 'results':
-          return <Results />;
-        case 'profile':
-          return <Profile />;
-        case 'appearance':
-          return <Appearance />;
-        case 'select-organization':
-          return <div className="p-6"><h2 className="text-2xl font-bold">Select Organization</h2><p>Organization selection coming soon...</p></div>;
-        default:
-          return <Dashboard />;
-      }
-    }
-
-    // For AttendanceMarker role
-    if (user?.role === 'AttendanceMarker') {
-      if (!selectedInstitute && currentPage !== 'select-institute') {
-        return <InstituteSelector />;
-      }
-
-      if (!selectedClass && currentPage !== 'select-class') {
-        return <ClassSelector />;
-      }
-
-      switch (currentPage) {
-        case 'dashboard':
-          return <Dashboard />;
-        case 'attendance-marking':
-          return <AttendanceMarking onNavigate={setCurrentPage} />;
-        case 'qr-attendance':
-          return <QRAttendance />;
-        case 'profile':
-          return <Profile />;
-        case 'select-institute':
-          return <InstituteSelector />;
-        case 'select-class':
-          return <ClassSelector />;
-        case 'appearance':
-          return <Appearance />;
-        default:
-          return <AttendanceMarking onNavigate={setCurrentPage} />;
-      }
-    }
-
-    // For InstituteAdmin and other roles - full access within their institute
-    if (!selectedInstitute && currentPage !== 'institutes' && currentPage !== 'select-institute') {
-      return <InstituteSelector />;
-    }
-
-    if (currentPage === 'select-class') {
-      return <ClassSelector />;
-    }
-
-    if (currentPage === 'select-subject') {
-      return <SubjectSelector />;
-    }
-
-    const classRequiredPages = ['attendance-marking', 'grading'];
-    if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
-      return <ClassSelector />;
-    }
-
-    const subjectRequiredPages = ['lectures'];
-    if (selectedClass && !selectedSubject && subjectRequiredPages.includes(currentPage)) {
-      return <SubjectSelector />;
-    }
-
-    switch (currentPage) {
+      case 'select-organization':
+        return <OrganizationSelector />;
       case 'dashboard':
         return <Dashboard />;
-      case 'organizations':
-        return <Organizations />;
       case 'users':
-        return <Users />;
+        return <div>Users</div>;
       case 'students':
-        return <Students />;
-      case 'teachers':
-        return <Teachers />;
+        return <div>Students</div>;
       case 'parents':
-        return <Parents />;
-      case 'grades':
-        return <Grades />;
+        return <div>Parents</div>;
+      case 'teachers':
+        return <div>Teachers</div>;
       case 'classes':
-        return <Classes apiLevel="institute" />;
+        return <div>Classes</div>;
       case 'subjects':
-        return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
+        return <div>Subjects</div>;
+      case 'select-class':
+        return <div>Select Class</div>;
+      case 'select-subject':
+        return <div>Select Subject</div>;
       case 'institutes':
-        return <Institutes />;
-      case 'select-institute':
-        return <InstituteSelector />;
-      case 'grading':
-      case 'grades-table':
-      case 'create-grade':
-      case 'assign-grade-classes':
-      case 'view-grade-classes':
-        return <Grading />;
+        return <div>Institutes</div>;
       case 'attendance':
-        return <Attendance />;
+        return <div>Attendance</div>;
       case 'attendance-marking':
-        return <AttendanceMarking onNavigate={setCurrentPage} />;
+        return <div>Attendance Marking</div>;
       case 'attendance-markers':
-        return <AttendanceMarkers />;
+        return <div>Attendance Markers</div>;
       case 'qr-attendance':
-        return <QRAttendance />;
+        return <div>QR Attendance</div>;
+      case 'courses':
+        return <div>Courses</div>;
+      case 'create-course':
+        return <div>Create Course</div>;
+      case 'course-materials':
+        return <div>Course Materials</div>;
       case 'lectures':
-        return <Lectures />;
+        return <div>Lectures</div>;
       case 'live-lectures':
-        return <LiveLectures />;
+        return <div>Live Lectures</div>;
+      case 'create-lecture':
+        return <div>Create Lecture</div>;
+      case 'causes':
+        return <div>Causes</div>;
+      case 'create-cause':
+        return <div>Create Cause</div>;
+      case 'cause-materials':
+        return <div>Cause Materials</div>;
+      case 'grading':
+        return <div>Grading</div>;
       case 'homework':
-        return <Homework />;
+        return <div>Homework</div>;
       case 'exams':
-        return <Exams />;
+        return <div>Exams</div>;
       case 'results':
-        return <Results />;
+        return <div>Results</div>;
       case 'profile':
-        return <Profile />;
-      case 'institute-details':
-        return <InstituteDetails />;
+        return <div>Profile</div>;
       case 'appearance':
-        return <Appearance />;
-      case 'select-organization':
-        return <div className="p-6"><h2 className="text-2xl font-bold">Select Organization</h2><p>Organization selection coming soon...</p></div>;
+        return <div>Appearance</div>;
+      case 'institute-details':
+        return <div>Institute Details</div>;
+      case 'settings':
+        return <div>Settings</div>;
       default:
         return <Dashboard />;
     }
   };
 
-  if (!user) {
-    return <Login onLogin={login} loginFunction={login} />;
-  }
-
-  // If in organization mode, show organization sidebar
-  if (isInOrganizationMode) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
-        <div className="flex w-full h-screen">
-          <OrganizationSidebar 
-            isOpen={isSidebarOpen}
-            onClose={handleSidebarClose}
-            currentPage={currentPage}
-            onPageChange={setCurrentPage}
-            organization={organizationLoginData}
-            onBack={handleBackToMain}
-          />
-          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <Header onMenuClick={handleMenuClick} />
-            <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
-              <div className="max-w-full">
-                {renderComponent()}
-              </div>
-            </main>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
-      <div className="flex w-full h-screen">
-        <Sidebar 
-          isOpen={isSidebarOpen}
-          onClose={handleSidebarClose}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)}
+        currentPage={currentPage}
+        onPageChange={handlePageChange}
+      />
+      
+      <div className="flex-1 flex flex-col">
+        <Header 
+          onSidebarToggle={handleSidebarToggle}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
+          showOrganizationHeader={false}
         />
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <Header onMenuClick={handleMenuClick} />
-          <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
-            <div className="max-w-full">
-              {renderComponent()}
-            </div>
-          </main>
-        </div>
+        <main className="flex-1 overflow-y-auto">
+          {renderContent()}
+        </main>
       </div>
     </div>
   );
