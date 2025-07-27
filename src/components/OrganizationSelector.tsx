@@ -4,36 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Search, Users, Award, ArrowLeft, Plus } from 'lucide-react';
+import { Building2, Search, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationApi, Organization } from '@/api/organization.api';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface OrganizationSelectorProps {
-  onOrganizationSelect?: (organization: Organization) => void;
   onBack?: () => void;
-  onCreateOrganization?: () => void;
-  userPermissions?: {
-    organizations: string[];
-    isGlobalAdmin: boolean;
-  };
 }
 
-const OrganizationSelector = ({ 
-  onOrganizationSelect, 
-  onBack, 
-  onCreateOrganization, 
-  userPermissions 
-}: OrganizationSelectorProps) => {
+const OrganizationSelector = ({ onBack }: OrganizationSelectorProps) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'INSTITUTE' | 'GLOBAL'>('all');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'PRESIDENT' | 'MEMBER'>('all');
   const { toast } = useToast();
-  const { user } = useAuth();
 
   useEffect(() => {
     loadOrganizations();
@@ -41,14 +25,14 @@ const OrganizationSelector = ({
 
   useEffect(() => {
     filterOrganizations();
-  }, [organizations, searchTerm, typeFilter, roleFilter]);
+  }, [organizations, searchTerm]);
 
   const loadOrganizations = async () => {
     try {
       setIsLoading(true);
-      const response = await organizationApi.getUserEnrolledOrganizations({
+      const response = await organizationApi.getOrganizations({
         page: 1,
-        limit: 50
+        limit: 10
       });
       setOrganizations(response.data);
     } catch (error) {
@@ -72,29 +56,11 @@ const OrganizationSelector = ({
       );
     }
 
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter(org => org.type === typeFilter);
-    }
-
-    if (roleFilter !== 'all') {
-      filtered = filtered.filter(org => org.userRole === roleFilter);
-    }
-
     setFilteredOrganizations(filtered);
-  };
-
-  const handleOrganizationSelect = (organization: Organization) => {
-    if (onOrganizationSelect) {
-      onOrganizationSelect(organization);
-    }
   };
 
   const getTypeColor = (type: string) => {
     return type === 'INSTITUTE' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
-  };
-
-  const getRoleColor = (role: string) => {
-    return role === 'PRESIDENT' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800';
   };
 
   if (isLoading) {
@@ -128,19 +94,11 @@ const OrganizationSelector = ({
               <p className="text-gray-600 dark:text-gray-400">Choose an organization to manage</p>
             </div>
           </div>
-          
-          {/* Show create button only for organization managers */}
-          {(user?.role === 'OrganizationManager' || userPermissions?.isGlobalAdmin) && onCreateOrganization && (
-            <Button onClick={onCreateOrganization} className="flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>Create Organization</span>
-            </Button>
-          )}
         </div>
 
-        {/* Filters */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
+        {/* Search Filter */}
+        <div className="mb-6">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search organizations..."
@@ -149,26 +107,6 @@ const OrganizationSelector = ({
               className="pl-10"
             />
           </div>
-          <Select value={typeFilter} onValueChange={(value: any) => setTypeFilter(value)}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filter by type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="INSTITUTE">Institute</SelectItem>
-              <SelectItem value="GLOBAL">Global</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={roleFilter} onValueChange={(value: any) => setRoleFilter(value)}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filter by role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="PRESIDENT">President</SelectItem>
-              <SelectItem value="MEMBER">Member</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Organizations Grid */}
@@ -177,7 +115,6 @@ const OrganizationSelector = ({
             <Card
               key={organization.organizationId}
               className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleOrganizationSelect(organization)}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -188,15 +125,10 @@ const OrganizationSelector = ({
                     <div>
                       <CardTitle className="text-lg">{organization.name}</CardTitle>
                       <CardDescription className="text-sm">
-                        Joined: {new Date(organization.joinedAt!).toLocaleDateString()}
+                        ID: {organization.organizationId}
                       </CardDescription>
                     </div>
                   </div>
-                  {organization.isVerified && (
-                    <Badge variant="outline" className="bg-green-50 text-green-700">
-                      Verified
-                    </Badge>
-                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -205,26 +137,17 @@ const OrganizationSelector = ({
                     <Badge className={getTypeColor(organization.type)}>
                       {organization.type}
                     </Badge>
-                    <Badge className={getRoleColor(organization.userRole!)}>
-                      {organization.userRole}
-                    </Badge>
+                    {organization.isPublic && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        Public
+                      </Badge>
+                    )}
                   </div>
                   
-                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                    <div className="flex items-center space-x-1">
-                      <Users className="h-4 w-4" />
-                      <span>{organization.memberCount} members</span>
+                  {organization.instituteId && (
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Institute ID: {organization.instituteId}
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <Award className="h-4 w-4" />
-                      <span>{organization.causeCount} causes</span>
-                    </div>
-                  </div>
-                  
-                  {organization.isPublic && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                      Public
-                    </Badge>
                   )}
                 </div>
               </CardContent>
@@ -239,9 +162,9 @@ const OrganizationSelector = ({
               No organizations found
             </h3>
             <p className="text-gray-600 dark:text-gray-400">
-              {searchTerm || typeFilter !== 'all' || roleFilter !== 'all'
-                ? 'Try adjusting your filters'
-                : 'You are not enrolled in any organizations yet'}
+              {searchTerm
+                ? 'Try adjusting your search filters'
+                : 'No organizations are available at this time'}
             </p>
           </div>
         )}

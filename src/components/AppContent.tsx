@@ -36,14 +36,15 @@ import Appearance from '@/components/Appearance';
 import OrganizationHeader from '@/components/OrganizationHeader';
 import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
+import OrganizationLoginPopup from '@/components/OrganizationLoginPopup';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
 
 const AppContent = () => {
   const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, setSelectedOrganization } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showOrganizationLoginPopup, setShowOrganizationLoginPopup] = useState(false);
   const [organizationLoginData, setOrganizationLoginData] = useState<any>(null);
-  const [showCreateOrgForm, setShowCreateOrgForm] = useState(false);
 
   const handleMenuClick = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -53,95 +54,46 @@ const AppContent = () => {
     setIsSidebarOpen(false);
   };
 
-  const handleOrganizationLogin = (loginResponse: any) => {
+  const handleOrganizationLoginSuccess = (loginResponse: any) => {
     console.log('Organization login successful:', loginResponse);
     setOrganizationLoginData(loginResponse);
-    setCurrentPage('organization-selector');
+    setShowOrganizationLoginPopup(false);
+    setCurrentPage('select-organization');
   };
 
   const handleOrganizationSelect = (organization: any) => {
     console.log('Organization selected:', organization);
     setSelectedOrganization(organization);
-    
-    // Switch to using baseUrl2 for organization-specific API calls
-    import('@/api/client').then(({ apiClient }) => {
-      apiClient.setUseBaseUrl2(true);
-    });
-    
     setCurrentPage('dashboard');
-  };
-
-  const handleBackToOrganizationSelector = () => {
-    setCurrentPage('organization-selector');
   };
 
   const handleBackToMain = () => {
     setOrganizationLoginData(null);
-    
-    // Switch back to using baseUrl for main API calls
-    import('@/api/client').then(({ apiClient }) => {
-      apiClient.setUseBaseUrl2(false);
-    });
-    
     setCurrentPage('dashboard');
   };
 
-  const handleCreateOrganization = () => {
-    setShowCreateOrgForm(true);
-  };
-
-  const handleCreateOrganizationSuccess = (organization: any) => {
-    console.log('Organization created successfully:', organization);
-    setShowCreateOrgForm(false);
-    setCurrentPage('organization-selector');
-  };
-
-  const handleCreateOrganizationCancel = () => {
-    setShowCreateOrgForm(false);
-  };
-
   const renderComponent = () => {
-    // Handle organization-related pages
-    if (currentPage === 'organizations') {
-      if (showCreateOrgForm) {
-        return (
-          <CreateOrganizationForm
-            onSuccess={handleCreateOrganizationSuccess}
-            onCancel={handleCreateOrganizationCancel}
-          />
-        );
+    // Handle OrganizationManager specific flow
+    if (user?.role === 'OrganizationManager') {
+      if (currentPage === 'organizations') {
+        setShowOrganizationLoginPopup(true);
+        setCurrentPage('dashboard');
+        return <Dashboard />;
       }
       
-      if (!organizationLoginData) {
-        return (
-          <OrganizationLogin
-            onLogin={handleOrganizationLogin}
-            onBack={handleBackToMain}
-          />
-        );
+      if (currentPage === 'select-organization') {
+        return <OrganizationSelector onBack={handleBackToMain} />;
       }
       
-      if (!selectedOrganization) {
-        return (
-          <OrganizationSelector
-            onOrganizationSelect={handleOrganizationSelect}
-            onBack={handleBackToMain}
-            onCreateOrganization={handleCreateOrganization}
-            userPermissions={organizationLoginData?.permissions}
-          />
-        );
+      // Default pages for OrganizationManager
+      switch (currentPage) {
+        case 'profile':
+          return <Profile />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
       }
-    }
-
-    if (currentPage === 'organization-selector') {
-      return (
-        <OrganizationSelector
-          onOrganizationSelect={handleOrganizationSelect}
-          onBack={handleBackToMain}
-          onCreateOrganization={handleCreateOrganization}
-          userPermissions={organizationLoginData?.permissions}
-        />
-      );
     }
 
     // System Admin doesn't need institute/class/subject selection flow
@@ -195,54 +147,8 @@ const AppContent = () => {
           return <InstituteDetails />;
         case 'appearance':
           return <Appearance />;
-        default:
-          return <Dashboard />;
-      }
-    }
-
-    // For Organization Manager - show organizations list or organization-specific dashboard
-    if (user?.role === 'OrganizationManager') {
-      if (!selectedOrganization && currentPage !== 'organizations') {
-        return <Organizations />;
-      }
-
-      // Add Organization Header for specific sections
-      const shouldShowOrgHeader = ['dashboard', 'students', 'lectures', 'gallery'].includes(currentPage);
-      
-      const getPageTitle = () => {
-        switch (currentPage) {
-          case 'dashboard': return 'Dashboard';
-          case 'students': return 'Students';
-          case 'lectures': return 'Lectures';
-          case 'gallery': return 'Gallery';
-          default: return 'Management';
-        }
-      };
-
-      const renderWithHeader = (component: React.ReactNode) => (
-        <>
-          {shouldShowOrgHeader && <OrganizationHeader title={getPageTitle()} />}
-          {component}
-        </>
-      );
-
-      switch (currentPage) {
         case 'organizations':
           return <Organizations />;
-        case 'dashboard':
-          return renderWithHeader(<Dashboard />);
-        case 'students':
-          return renderWithHeader(<Students />);
-        case 'lectures':
-          return renderWithHeader(<Lectures />);
-        case 'gallery':
-          return renderWithHeader(<Gallery />);
-        case 'appearance':
-          return <Appearance />;
-        case 'profile':
-          return <Profile />;
-        case 'settings':
-          return <Settings />;
         default:
           return <Dashboard />;
       }
@@ -278,6 +184,8 @@ const AppContent = () => {
           return <InstituteSelector />;
         case 'appearance':
           return <Appearance />;
+        case 'organizations':
+          return <Organizations />;
         default:
           return <Dashboard />;
       }
@@ -310,6 +218,8 @@ const AppContent = () => {
           return <ParentChildrenSelector />;
         case 'appearance':
           return <Appearance />;
+        case 'organizations':
+          return <Organizations />;
         default:
           return <ParentChildrenSelector />;
       }
@@ -374,6 +284,8 @@ const AppContent = () => {
           return <Profile />;
         case 'appearance':
           return <Appearance />;
+        case 'organizations':
+          return <Organizations />;
         default:
           return <Dashboard />;
       }
@@ -404,6 +316,8 @@ const AppContent = () => {
           return <ClassSelector />;
         case 'appearance':
           return <Appearance />;
+        case 'organizations':
+          return <Organizations />;
         default:
           return <AttendanceMarking onNavigate={setCurrentPage} />;
       }
@@ -483,6 +397,8 @@ const AppContent = () => {
         return <InstituteDetails />;
       case 'appearance':
         return <Appearance />;
+      case 'organizations':
+        return <Organizations />;
       default:
         return <Dashboard />;
     }
@@ -490,11 +406,6 @@ const AppContent = () => {
 
   if (!user) {
     return <Login onLogin={login} loginFunction={login} />;
-  }
-
-  // If organizations page is active, render full screen without sidebar
-  if (currentPage === 'organizations' && !selectedOrganization) {
-    return renderComponent();
   }
 
   return (
@@ -515,6 +426,13 @@ const AppContent = () => {
           </main>
         </div>
       </div>
+      
+      {/* Organization Login Popup */}
+      <OrganizationLoginPopup
+        isOpen={showOrganizationLoginPopup}
+        onClose={() => setShowOrganizationLoginPopup(false)}
+        onLoginSuccess={handleOrganizationLoginSuccess}
+      />
     </div>
   );
 };
