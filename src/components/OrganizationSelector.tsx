@@ -1,251 +1,329 @@
 
 import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Search, Users, Award, ArrowLeft, Plus } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Building2, Search, Plus, LayoutGrid, List, LogOut } from 'lucide-react';
+import { organizationSpecificApi, Organization } from '@/api/organization.api';
 import { useToast } from '@/hooks/use-toast';
-import { organizationApi, Organization } from '@/api/organization.api';
-import { useAuth } from '@/contexts/AuthContext';
+import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 interface OrganizationSelectorProps {
-  onOrganizationSelect?: (organization: Organization) => void;
-  onBack?: () => void;
-  onCreateOrganization?: () => void;
-  userPermissions?: {
-    organizations: string[];
-    isGlobalAdmin: boolean;
-  };
+  onLogout: () => void;
 }
 
-const OrganizationSelector = ({ 
-  onOrganizationSelect, 
-  onBack, 
-  onCreateOrganization, 
-  userPermissions 
-}: OrganizationSelectorProps) => {
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'INSTITUTE' | 'GLOBAL'>('all');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'PRESIDENT' | 'MEMBER'>('all');
+const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalOrganizations, setTotalOrganizations] = useState(0);
 
-  useEffect(() => {
-    loadOrganizations();
-  }, []);
-
-  useEffect(() => {
-    filterOrganizations();
-  }, [organizations, searchTerm, typeFilter, roleFilter]);
-
-  const loadOrganizations = async () => {
+  const fetchOrganizations = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const response = await organizationApi.getUserEnrolledOrganizations({
-        page: 1,
-        limit: 50
-      });
+      const params = {
+        page: currentPage,
+        limit: 10,
+      };
+
+      if (searchTerm) {
+        params.search = searchTerm;
+      }
+
+      const response = await organizationSpecificApi.get('/organization/api/v1/organizations', params);
       setOrganizations(response.data);
+      setTotalPages(response.pagination.totalPages);
+      setTotalOrganizations(response.pagination.total);
     } catch (error) {
-      console.error('Error loading organizations:', error);
+      console.error('Error fetching organizations:', error);
       toast({
-        title: "Error",
-        description: "Failed to load organizations",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to fetch organizations',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const filterOrganizations = () => {
-    let filtered = organizations;
+  useEffect(() => {
+    fetchOrganizations();
+  }, [currentPage, searchTerm]);
 
-    if (searchTerm) {
-      filtered = filtered.filter(org =>
-        org.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter(org => org.type === typeFilter);
-    }
-
-    if (roleFilter !== 'all') {
-      filtered = filtered.filter(org => org.userRole === roleFilter);
-    }
-
-    setFilteredOrganizations(filtered);
+  const handleCreateSuccess = (newOrganization: Organization) => {
+    setIsCreateDialogOpen(false);
+    fetchOrganizations(); // Refresh the list
+    toast({
+      title: 'Success',
+      description: 'Organization created successfully',
+    });
   };
 
-  const handleOrganizationSelect = (organization: Organization) => {
-    if (onOrganizationSelect) {
-      onOrganizationSelect(organization);
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    return type === 'INSTITUTE' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
-  };
-
-  const getRoleColor = (role: string) => {
-    return role === 'PRESIDENT' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800';
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading organizations...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            {onBack && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBack}
-                className="p-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            )}
+  const OrganizationCard = ({ org }: { org: Organization }) => (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center space-x-2">
+            <Building2 className="h-5 w-5 text-primary" />
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Select Organization</h1>
-              <p className="text-gray-600 dark:text-gray-400">Choose an organization to manage</p>
+              <CardTitle className="text-lg">{org.name}</CardTitle>
+              <Badge variant="outline" className="mt-1">
+                {org.type}
+              </Badge>
             </div>
           </div>
-          
-          {/* Show create button only for organization managers */}
-          {(user?.role === 'OrganizationManager' || userPermissions?.isGlobalAdmin) && onCreateOrganization && (
-            <Button onClick={onCreateOrganization} className="flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>Create Organization</span>
-            </Button>
+          <div className="flex flex-col gap-1">
+            <Badge variant={org.isPublic ? 'default' : 'secondary'}>
+              {org.isPublic ? 'Public' : 'Private'}
+            </Badge>
+            {org.instituteId && (
+              <Badge variant="outline" className="text-xs">
+                {org.instituteId}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center space-x-2">
+            <span className="font-medium">Type:</span>
+            <span className="text-muted-foreground">{org.type}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="font-medium">Visibility:</span>
+            <span className="text-muted-foreground">
+              {org.isPublic ? 'Public' : 'Private'}
+            </span>
+          </div>
+          {org.instituteId && (
+            <div className="flex items-center space-x-2">
+              <span className="font-medium">Institute:</span>
+              <span className="text-muted-foreground">{org.instituteId}</span>
+            </div>
           )}
         </div>
 
-        {/* Filters */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search organizations..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={typeFilter} onValueChange={(value: any) => setTypeFilter(value)}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filter by type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="INSTITUTE">Institute</SelectItem>
-              <SelectItem value="GLOBAL">Global</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={roleFilter} onValueChange={(value: any) => setRoleFilter(value)}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Filter by role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Roles</SelectItem>
-              <SelectItem value="PRESIDENT">President</SelectItem>
-              <SelectItem value="MEMBER">Member</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="pt-2">
+          <Button
+            onClick={() => console.log('Select organization:', org.organizationId)}
+            className="w-full"
+          >
+            Select Organization
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Select Organization</h1>
+          <p className="text-muted-foreground">
+            Choose an organization to manage
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Organization
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Create New Organization</DialogTitle>
+              </DialogHeader>
+              <CreateOrganizationForm
+                onSuccess={handleCreateSuccess}
+                onCancel={() => setIsCreateDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+          <Button variant="outline" onClick={onLogout}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </Button>
+        </div>
+      </div>
+
+      {/* Search and View Mode */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search organizations..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
         </div>
 
-        {/* Organizations Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredOrganizations.map((organization) => (
-            <Card
-              key={organization.organizationId}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleOrganizationSelect(organization)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Building2 className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{organization.name}</CardTitle>
-                      <CardDescription className="text-sm">
-                        Joined: {new Date(organization.joinedAt!).toLocaleDateString()}
-                      </CardDescription>
-                    </div>
-                  </div>
-                  {organization.isVerified && (
-                    <Badge variant="outline" className="bg-green-50 text-green-700">
-                      Verified
-                    </Badge>
-                  )}
-                </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant={viewMode === 'card' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('card')}
+          >
+            <LayoutGrid className="h-4 w-4 mr-1" />
+            Cards
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+          >
+            <List className="h-4 w-4 mr-1" />
+            Table
+          </Button>
+        </div>
+      </div>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      )}
+
+      {/* Content */}
+      {!isLoading && (
+        <>
+          {viewMode === 'card' ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {organizations.map((org) => (
+                <OrganizationCard key={org.organizationId} org={org} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Organizations List</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Badge className={getTypeColor(organization.type)}>
-                      {organization.type}
-                    </Badge>
-                    <Badge className={getRoleColor(organization.userRole!)}>
-                      {organization.userRole}
-                    </Badge>
-                  </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Visibility</TableHead>
+                      <TableHead>Institute ID</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {organizations.map((org) => (
+                      <TableRow key={org.organizationId}>
+                        <TableCell>
+                          <div className="font-medium">{org.name}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{org.type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={org.isPublic ? 'default' : 'secondary'}>
+                            {org.isPublic ? 'Public' : 'Private'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {org.instituteId ? (
+                            <Badge variant="outline" className="text-xs">
+                              {org.instituteId}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            onClick={() => console.log('Select organization:', org.organizationId)}
+                            size="sm"
+                          >
+                            Select
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {organizations.length} of {totalOrganizations} organizations
+              </p>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
                   
-                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                    <div className="flex items-center space-x-1">
-                      <Users className="h-4 w-4" />
-                      <span>{organization.memberCount} members</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Award className="h-4 w-4" />
-                      <span>{organization.causeCount} causes</span>
-                    </div>
-                  </div>
+                  {[...Array(totalPages)].map((_, index) => {
+                    const page = index + 1;
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
                   
-                  {organization.isPublic && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                      Public
-                    </Badge>
-                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+
+          {organizations.length === 0 && !isLoading && (
+            <Card>
+              <CardContent className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium">No organizations found</h3>
+                  <p className="text-muted-foreground">
+                    {searchTerm 
+                      ? 'Try adjusting your search terms' 
+                      : 'Get started by adding your first organization'
+                    }
+                  </p>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-
-        {filteredOrganizations.length === 0 && (
-          <div className="text-center py-12">
-            <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No organizations found
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              {searchTerm || typeFilter !== 'all' || roleFilter !== 'all'
-                ? 'Try adjusting your filters'
-                : 'You are not enrolled in any organizations yet'}
-            </p>
-          </div>
-        )}
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

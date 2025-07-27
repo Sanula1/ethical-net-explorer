@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,9 +39,60 @@ interface SidebarProps {
 const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) => {
   const { user, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, logout, setSelectedInstitute, setSelectedClass, setSelectedSubject, setSelectedChild, setSelectedOrganization } = useAuth();
 
-  // Get menu items based on current selection state
+  // Check if user is logged into organization portal
+  const isOrganizationMode = localStorage.getItem('org_access_token');
+
+  // Get menu items based on current selection state and user role
   const getMenuItems = () => {
-    // Base items that are always available for all users
+    // For OrganizationManager role, show limited navigation
+    if (user?.role === 'OrganizationManager') {
+      // If logged into organization portal, show organization-specific navigation
+      if (isOrganizationMode) {
+        return [
+          {
+            id: 'select-organizations',
+            label: 'Select Organizations',
+            icon: Building2,
+            permission: 'view-organizations',
+            alwaysShow: true
+          },
+          {
+            id: 'gallery',
+            label: 'Gallery',
+            icon: Images,
+            permission: 'view-gallery',
+            alwaysShow: true
+          },
+          {
+            id: 'courses',
+            label: 'Courses',
+            icon: BookOpen,
+            permission: 'view-subjects',
+            alwaysShow: true
+          },
+          {
+            id: 'students',
+            label: 'Students',
+            icon: GraduationCap,
+            permission: 'view-students',
+            alwaysShow: true
+          }
+        ];
+      }
+      
+      // Default OrganizationManager navigation (not in organization portal)
+      return [
+        {
+          id: 'organizations',
+          label: 'Organizations',
+          icon: Building2,
+          permission: 'view-organizations',
+          alwaysShow: true
+        }
+      ];
+    }
+
+    // Base items for other roles
     const baseItems = [
       {
         id: 'dashboard',
@@ -54,7 +106,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         label: 'Organizations',
         icon: Building2,
         permission: 'view-organizations',
-        alwaysShow: true // Always show organizations for all users
+        alwaysShow: true
       }
     ];
 
@@ -205,39 +257,63 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     }
   ];
 
-  const settingsItems = [
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: User,
-      permission: 'view-profile',
-      alwaysShow: false
-    },
-    {
-      id: 'appearance',
-      label: 'Appearance',
-      icon: Palette,
-      permission: 'view-appearance',
-      alwaysShow: false
-    },
-    ...(selectedInstitute ? [{
-      id: 'institute-details',
-      label: 'Institute Details',
-      icon: Building2,
-      permission: 'view-institute-details',
-      alwaysShow: false
-    }] : []),
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      permission: 'view-settings',
-      alwaysShow: false
+  const getSettingsItems = () => {
+    // For OrganizationManager, only show Profile and Appearance
+    if (user?.role === 'OrganizationManager') {
+      return [
+        {
+          id: 'profile',
+          label: 'Profile',
+          icon: User,
+          permission: 'view-profile',
+          alwaysShow: true
+        },
+        {
+          id: 'appearance',
+          label: 'Appearance',
+          icon: Palette,
+          permission: 'view-appearance',
+          alwaysShow: true
+        }
+      ];
     }
-  ];
+
+    // For other roles, show all settings
+    return [
+      {
+        id: 'profile',
+        label: 'Profile',
+        icon: User,
+        permission: 'view-profile',
+        alwaysShow: false
+      },
+      {
+        id: 'appearance',
+        label: 'Appearance',
+        icon: Palette,
+        permission: 'view-appearance',
+        alwaysShow: false
+      },
+      ...(selectedInstitute ? [{
+        id: 'institute-details',
+        label: 'Institute Details',
+        icon: Building2,
+        permission: 'view-institute-details',
+        alwaysShow: false
+      }] : []),
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: Settings,
+        permission: 'view-settings',
+        alwaysShow: false
+      }
+    ];
+  };
 
   const userRole = user?.role || 'Student';
   const menuItems = getMenuItems();
+  const settingsItems = getSettingsItems();
 
   const filterItemsByPermission = (items: any[]) => {
     return items.filter(item => {
@@ -257,12 +333,18 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
   };
 
   const handleLogout = () => {
+    // Clear organization token when logging out
+    localStorage.removeItem('org_access_token');
     logout();
     onClose();
   };
 
   const handleBackNavigation = () => {
-    if (selectedOrganization) {
+    if (isOrganizationMode) {
+      // If in organization mode, go back to organization login
+      localStorage.removeItem('org_access_token');
+      onPageChange('organizations');
+    } else if (selectedOrganization) {
       // Go back from organization level to organization selection
       setSelectedOrganization(null);
     } else if (selectedChild) {
@@ -334,10 +416,21 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           <div className="flex items-center space-x-2 min-w-0">
             <School className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 flex-shrink-0" />
             <span className="font-bold text-base sm:text-lg text-gray-900 dark:text-white truncate">
-              EduSystem
+              {isOrganizationMode ? 'Organization Portal' : 'EduSystem'}
             </span>
           </div>
           <div className="flex items-center space-x-1">
+            {isOrganizationMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackNavigation}
+                className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -351,8 +444,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           </div>
         </div>
 
-        {/* Context Info - Only show for non-SystemAdmin users */}
-        {user?.role !== 'SystemAdmin' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
+        {/* Context Info - Only show for non-SystemAdmin and non-OrganizationManager users */}
+        {user?.role !== 'SystemAdmin' && user?.role !== 'OrganizationManager' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
@@ -409,13 +502,15 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance and academic sections if institute is selected */}
-            {selectedInstitute && (
+            
+            {/* Only show attendance and academic sections for non-OrganizationManager users and if institute is selected */}
+            {user?.role !== 'OrganizationManager' && selectedInstitute && (
               <>
                 <SidebarSection title="Attendance" items={attendanceItems} />
                 <SidebarSection title="Academic" items={systemItems} />
               </>
             )}
+            
             <SidebarSection title="Settings" items={settingsItems} />
           </div>
         </ScrollArea>
@@ -431,6 +526,12 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
               <span>Role:</span> 
               <span className="font-medium ml-1">{user?.role}</span>
             </div>
+            {isOrganizationMode && (
+              <div>
+                <span>Mode:</span> 
+                <span className="font-medium ml-1 text-blue-600 dark:text-blue-400">Organization Portal</span>
+              </div>
+            )}
           </div>
           <Button
             variant="outline"
