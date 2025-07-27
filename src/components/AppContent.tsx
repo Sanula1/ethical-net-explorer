@@ -38,7 +38,6 @@ import OrganizationSelector from '@/components/OrganizationSelector';
 import OrganizationDashboard from '@/components/OrganizationDashboard';
 import OrganizationSidebar from '@/components/OrganizationSidebar';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
-import Courses from '@/components/Courses';
 
 const AppContent = () => {
   const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, setSelectedOrganization } = useAuth();
@@ -174,8 +173,6 @@ const AppContent = () => {
       switch (currentPage) {
         case 'dashboard':
           return <Dashboard />;
-        case 'courses':
-          return <Courses />;
         case 'profile':
           return <Profile />;
         case 'appearance':
@@ -494,6 +491,8 @@ const AppContent = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
       <div className="flex w-full h-screen">
         <Sidebar 
+          isOpen={isSidebarOpen}
+          onClose={handleSidebarClose}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
         />
