@@ -26,7 +26,8 @@ import {
   ArrowLeft,
   Notebook,
   Images,
-  Palette
+  Palette,
+  Target
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -208,12 +209,12 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     }
   ];
 
-  const systemItems = [
+  const lecturesItems = [
     {
-      id: 'grading',
-      label: 'Grading',
-      icon: BarChart3,
-      permission: 'view-grading',
+      id: 'lectures',
+      label: 'All Lectures',
+      icon: Video,
+      permission: 'view-lectures',
       alwaysShow: false
     },
     {
@@ -221,6 +222,47 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       label: 'Live Lectures',
       icon: Video,
       permission: 'view-lectures',
+      alwaysShow: false
+    },
+    {
+      id: 'create-lecture',
+      label: 'Create Lecture',
+      icon: Video,
+      permission: 'create-lecture',
+      alwaysShow: false
+    }
+  ];
+
+  const causesItems = [
+    {
+      id: 'causes',
+      label: 'All Causes',
+      icon: Target,
+      permission: 'view-causes',
+      alwaysShow: false
+    },
+    {
+      id: 'create-cause',
+      label: 'Create Cause',
+      icon: Target,
+      permission: 'create-cause',
+      alwaysShow: false
+    },
+    {
+      id: 'cause-materials',
+      label: 'Cause Materials',
+      icon: FileText,
+      permission: 'view-cause-materials',
+      alwaysShow: false
+    }
+  ];
+
+  const systemItems = [
+    {
+      id: 'grading',
+      label: 'Grading',
+      icon: BarChart3,
+      permission: 'view-grading',
       alwaysShow: false
     },
     {
@@ -474,11 +516,13 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance, courses and academic sections if institute is selected and not OrganizationManager */}
+            {/* Only show attendance, courses, lectures, causes and academic sections if institute is selected and not OrganizationManager */}
             {selectedInstitute && user?.role !== 'OrganizationManager' && (
               <>
                 <SidebarSection title="Attendance" items={attendanceItems} />
                 <SidebarSection title="Courses" items={coursesItems} />
+                <SidebarSection title="Lectures" items={lecturesItems} />
+                <SidebarSection title="Causes" items={causesItems} />
                 <SidebarSection title="Academic" items={systemItems} />
               </>
             )}
