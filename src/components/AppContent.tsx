@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -42,7 +43,7 @@ import { Organization } from '@/contexts/types/auth.types';
 
 const AppContent = () => {
   const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization: authSelectedOrganization, setSelectedOrganization } = useAuth();
-  const [currentPage, setCurrentPage] = useState('organizations');
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showOrganizationLoginPopup, setShowOrganizationLoginPopup] = useState(false);
   const [organizationLoginData, setOrganizationLoginData] = useState<any>(null);
@@ -90,7 +91,6 @@ const AppContent = () => {
 
   const handleCreateSuccess = (organization: Organization) => {
     setShowCreateForm(false);
-    // Optionally refresh the organization list or select the newly created organization
     setCurrentPage('select-organization');
   };
 
@@ -101,48 +101,7 @@ const AppContent = () => {
   const renderComponent = () => {
     // Handle OrganizationManager specific flow
     if (user?.role === 'OrganizationManager') {
-      if (currentPage === 'organizations') {
-        setShowOrganizationLoginPopup(true);
-        setCurrentPage('organizations');
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">Organizations</h1>
-                <p className="text-muted-foreground">Access your organization portal</p>
-              </div>
-            </div>
-            <div className="text-center py-12">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Please log in to access organizations
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Click on Organizations in the sidebar to log in to your organization portal.
-              </p>
-            </div>
-          </div>
-        );
-      }
-      
-      if (currentPage === 'select-organization') {
-        return (
-          <OrganizationSelector
-            onBack={handleBackToMain}
-            onOrganizationSelect={handleOrganizationSelect}
-            onCreateOrganization={handleCreateOrganization}
-          />
-        );
-      }
-
-      if (currentPage === 'organization-portal' && selectedOrganization) {
-        return (
-          <OrganizationPortal
-            selectedOrganization={selectedOrganization}
-            onBack={handleBackToOrganizations}
-          />
-        );
-      }
-
+      // Show create form if requested
       if (showCreateForm) {
         return (
           <CreateOrganizationForm
@@ -152,8 +111,52 @@ const AppContent = () => {
         );
       }
       
-      // Default pages for OrganizationManager
+      // Show organization portal if organization is selected
+      if (currentPage === 'organization-portal' && selectedOrganization) {
+        return (
+          <OrganizationPortal
+            selectedOrganization={selectedOrganization}
+            onBack={handleBackToOrganizations}
+          />
+        );
+      }
+      
+      // Show organization selector if logged in to org system
+      if (currentPage === 'select-organization' && organizationLoginData) {
+        return (
+          <OrganizationSelector
+            onBack={handleBackToMain}
+            onOrganizationSelect={handleOrganizationSelect}
+            onCreateOrganization={handleCreateOrganization}
+          />
+        );
+      }
+
+      // Handle other pages for OrganizationManager
       switch (currentPage) {
+        case 'organizations':
+          if (!organizationLoginData) {
+            // Show login popup trigger
+            return (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-3xl font-bold text-foreground">Organizations</h1>
+                    <p className="text-muted-foreground">Access your organization portal</p>
+                  </div>
+                </div>
+                <div className="text-center py-12">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    Please log in to access organizations
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Click on Organizations in the sidebar to log in to your organization portal.
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          return <Organizations />;
         case 'profile':
           return <Profile />;
         case 'appearance':
@@ -492,16 +495,6 @@ const AppContent = () => {
     return <Login onLogin={login} loginFunction={login} />;
   }
 
-  // Show organization portal if an organization is selected
-  if (selectedOrganization && currentPage === 'organization-portal') {
-    return (
-      <OrganizationPortal
-        selectedOrganization={selectedOrganization}
-        onBack={handleBackToOrganizations}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
       <div className="flex w-full h-screen">
@@ -512,7 +505,10 @@ const AppContent = () => {
           onPageChange={setCurrentPage}
         />
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <Header onMenuClick={handleMenuClick} />
+          <Header 
+            onMenuClick={handleMenuClick}
+            organizationName={selectedOrganization?.name}
+          />
           <main className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6">
             <div className="max-w-full">
               {renderComponent()}
