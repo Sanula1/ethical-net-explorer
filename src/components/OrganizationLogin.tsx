@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft, Eye, EyeOff, Building2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { organizationApi } from '@/api/organization.api';
 
 interface OrganizationLoginProps {
   onLogin: (loginResponse: any) => void;
@@ -34,20 +33,35 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
 
     setIsLoading(true);
     try {
-      const response = await organizationApi.loginToOrganization({
-        email,
-        password
+      // Get the base URL from localStorage or context
+      const baseUrl = localStorage.getItem('baseUrl') || 'https://api.example.com';
+      
+      const response = await fetch(`${baseUrl}/organization/api/v1/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password
+        }),
       });
 
+      if (!response.ok) {
+        throw new Error('Login failed');
+      }
+
+      const data = await response.json();
+      
       // Store the organization token
-      localStorage.setItem('org_access_token', response.access_token);
+      localStorage.setItem('org_access_token', data.access_token);
       
       toast({
         title: "Success",
         description: "Successfully logged in to organization system",
       });
 
-      onLogin(response);
+      onLogin(data);
     } catch (error) {
       console.error('Organization login error:', error);
       toast({

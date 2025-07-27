@@ -41,6 +41,26 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state and user role
   const getMenuItems = () => {
+    // For InstituteAdmin, Student, Teacher roles - show only Select Institute and Organizations
+    if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
+      return [
+        {
+          id: 'select-institute',
+          label: 'Select Institute',
+          icon: Building2,
+          permission: 'view-institutes',
+          alwaysShow: true
+        },
+        {
+          id: 'organizations',
+          label: 'Organizations',
+          icon: Building2,
+          permission: 'view-organizations',
+          alwaysShow: true
+        }
+      ];
+    }
+
     // For OrganizationManager role
     if (user?.role === 'OrganizationManager') {
       // If they have logged into organization system, show Organizations, Lectures, and Causes in main menu
@@ -71,7 +91,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       return baseOrgItems;
     }
 
-    // Base items that are always available for all other users
+    // For other roles (SystemAdmin, etc.) - keep existing logic
     const baseItems = [
       {
         id: 'dashboard',
@@ -85,21 +105,21 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         label: 'Organizations',
         icon: Building2,
         permission: 'view-organizations',
-        alwaysShow: true // Always show organizations for all users
+        alwaysShow: true
       },
       {
         id: 'lectures',
         label: 'Lectures',
         icon: Video,
         permission: 'view-lectures',
-        alwaysShow: true // Always show lectures for all users
+        alwaysShow: true
       },
       {
         id: 'causes',
         label: 'Causes',
         icon: Target,
         permission: 'view-causes',
-        alwaysShow: true // Always show causes for all users
+        alwaysShow: true
       }
     ];
 
@@ -316,6 +336,26 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
   ];
 
   const getSettingsItems = () => {
+    // For InstituteAdmin, Student, Teacher roles - show only Profile and Appearance
+    if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
+      return [
+        {
+          id: 'profile',
+          label: 'Profile',
+          icon: User,
+          permission: 'view-profile',
+          alwaysShow: true
+        },
+        {
+          id: 'appearance',
+          label: 'Appearance',
+          icon: Palette,
+          permission: 'view-appearance',
+          alwaysShow: true
+        }
+      ];
+    }
+
     // For OrganizationManager role, show only Profile and Appearance
     if (user?.role === 'OrganizationManager') {
       return [
@@ -375,11 +415,9 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   const filterItemsByPermission = (items: any[]) => {
     return items.filter(item => {
-      // Always show items marked as alwaysShow
       if (item.alwaysShow) {
         return true;
       }
-      // Otherwise check permission
       return AccessControl.hasPermission(userRole as any, item.permission);
     });
   };
@@ -397,19 +435,14 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   const handleBackNavigation = () => {
     if (selectedOrganization) {
-      // Go back from organization level to organization selection
       setSelectedOrganization(null);
     } else if (selectedChild) {
-      // Go back from child level to children selection
       setSelectedChild(null);
     } else if (selectedSubject) {
-      // Go back from subject level to class level
       setSelectedSubject(null);
     } else if (selectedClass) {
-      // Go back from class level to institute level
       setSelectedClass(null);
     } else if (selectedInstitute) {
-      // Go back from institute level to institute selection
       setSelectedInstitute(null);
     }
   };
@@ -485,8 +518,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           </div>
         </div>
 
-        {/* Context Info - Only show for non-SystemAdmin users and non-OrganizationManager */}
-        {user?.role !== 'SystemAdmin' && user?.role !== 'OrganizationManager' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
+        {/* Context Info - Only show for non-SystemAdmin users */}
+        {user?.role !== 'SystemAdmin' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
@@ -543,8 +576,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance, courses, lectures, causes and academic sections if institute is selected and not OrganizationManager */}
-            {selectedInstitute && user?.role !== 'OrganizationManager' && (
+            {/* Only show attendance, courses, lectures, causes and academic sections if institute is selected and not OrganizationManager and not InstituteAdmin/Student/Teacher */}
+            {selectedInstitute && user?.role !== 'OrganizationManager' && user?.role !== 'InstituteAdmin' && user?.role !== 'Student' && user?.role !== 'Teacher' && (
               <>
                 <SidebarSection title="Attendance" items={attendanceItems} />
                 <SidebarSection title="Courses" items={coursesItems} />
