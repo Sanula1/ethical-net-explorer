@@ -10,7 +10,8 @@ import {
   User,
   Palette,
   LogOut,
-  ArrowLeft
+  ArrowLeft,
+  Award
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -43,7 +44,7 @@ const OrganizationSidebar = ({ currentPage, onPageChange, organization, onBack }
     {
       id: 'courses',
       label: 'Courses',
-      icon: BookOpen,
+      icon: Award,
     },
   ];
 

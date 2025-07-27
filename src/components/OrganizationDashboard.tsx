@@ -3,9 +3,29 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Users, BookOpen, Images, ArrowLeft, Award } from 'lucide-react';
+import { Building2, Users, BookOpen, Images, ArrowLeft, Award, Video, FileText, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationSpecificApi } from '@/api/organization.api';
+
+interface OrganizationCourse {
+  causeId: string;
+  organizationId: string;
+  title: string;
+  description: string;
+  introVideoUrl: string;
+  isPublic: boolean;
+  createdAt: any;
+  updatedAt: any;
+  organization: {
+    organizationId: string;
+    name: string;
+    type: string;
+  };
+  _count: {
+    lectures: number;
+    assignments: number;
+  };
+}
 
 interface Course {
   causeId: string;
@@ -40,29 +60,29 @@ interface OrganizationDashboardProps {
 
 const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange }: OrganizationDashboardProps) => {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [organizationCourses, setOrganizationCourses] = useState<OrganizationCourse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateCourseForm, setShowCreateCourseForm] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (currentPage === 'courses') {
-      loadCourses();
+      loadOrganizationCourses();
     }
-  }, [currentPage]);
+  }, [currentPage, organization.organizationId]);
 
-  const loadCourses = async () => {
+  const loadOrganizationCourses = async () => {
     try {
       setIsLoading(true);
-      const response = await organizationSpecificApi.get<CoursesResponse>('/organization/api/v1/causes', {
-        page: 1,
-        limit: 10
-      });
-      setCourses(response.data);
+      const response = await organizationSpecificApi.get<OrganizationCourse[]>(
+        `/organization/api/v1/causes/organization/${organization.organizationId}`
+      );
+      setOrganizationCourses(response);
     } catch (error) {
-      console.error('Error loading courses:', error);
+      console.error('Error loading organization courses:', error);
       toast({
         title: "Error",
-        description: "Failed to load courses",
+        description: "Failed to load organization courses",
         variant: "destructive",
       });
     } finally {
@@ -79,6 +99,9 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
       
       setCourses(prev => [response, ...prev]);
       setShowCreateCourseForm(false);
+      
+      // Reload organization courses to get updated data
+      loadOrganizationCourses();
       
       toast({
         title: "Success",
@@ -132,7 +155,7 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
                 <CardHeader className="pb-3">
                   <div className="flex items-center space-x-3">
                     <div className="p-2 bg-green-100 rounded-lg">
-                      <BookOpen className="h-6 w-6 text-green-600" />
+                      <Award className="h-6 w-6 text-green-600" />
                     </div>
                     <div>
                       <CardTitle className="text-lg">Courses</CardTitle>
@@ -181,7 +204,7 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Courses</h2>
+              <h2 className="text-2xl font-bold">Organization Courses</h2>
               <Button onClick={() => setShowCreateCourseForm(true)}>
                 Create Course
               </Button>
@@ -201,7 +224,7 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {courses.map((course) => (
+                {organizationCourses.map((course) => (
                   <Card key={course.causeId} className="hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
@@ -211,7 +234,7 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
                           </div>
                           <div>
                             <CardTitle className="text-lg">{course.title}</CardTitle>
-                            <CardDescription>{course.description}</CardDescription>
+                            <CardDescription className="line-clamp-2">{course.description}</CardDescription>
                           </div>
                         </div>
                         <Badge variant={course.isPublic ? "default" : "secondary"}>
@@ -219,17 +242,40 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
                         </Badge>
                       </div>
                     </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-1">
+                            <Video className="h-4 w-4" />
+                            <span>{course._count.lectures} lectures</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <FileText className="h-4 w-4" />
+                            <span>{course._count.assignments} assignments</span>
+                          </div>
+                        </div>
+                      </div>
+                      {course.introVideoUrl && (
+                        <div className="mt-3">
+                          <Button variant="outline" size="sm" className="w-full">
+                            <Video className="h-4 w-4 mr-2" />
+                            Watch Intro
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
                   </Card>
                 ))}
               </div>
             )}
 
-            {courses.length === 0 && !isLoading && (
+            {organizationCourses.length === 0 && !isLoading && (
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center text-gray-500">
-                    <BookOpen className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p>No courses found</p>
+                    <Award className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>No courses found for this organization</p>
+                    <p className="text-sm mt-2">Click "Create Course" to add your first course</p>
                   </div>
                 </CardContent>
               </Card>
