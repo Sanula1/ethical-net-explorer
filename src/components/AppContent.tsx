@@ -1,185 +1,183 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import Header from '@/components/layout/Header';
+import Dashboard from '@/components/Dashboard';
 import Sidebar from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
+import Institutes from '@/components/Institutes';
+import Classes from '@/components/Classes';
+import Subjects from '@/components/Subjects';
+import Lectures from '@/components/Lectures';
+import Homework from '@/components/Homework';
+import Exams from '@/components/Exams';
+import Results from '@/components/Results';
+import Users from '@/components/Users';
+import Teachers from '@/components/Teachers';
+import Students from '@/components/Students';
+import Parents from '@/components/Parents';
+import AttendanceMarkers from '@/components/AttendanceMarkers';
+import Profile from '@/components/Profile';
+import Appearance from '@/components/Appearance';
+import Settings from '@/components/Settings';
+import Organizations from '@/components/Organizations';
 import OrganizationLogin from '@/components/OrganizationLogin';
-import { OrganizationSelector } from '@/components/OrganizationSelector';
-import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
-import Dashboard from './Dashboard';
+import OrganizationSidebar from '@/components/OrganizationSidebar';
+import OrganizationDashboard from '@/components/OrganizationDashboard';
+import OrganizationManagerSidebar from '@/components/OrganizationManagerSidebar';
+import OrganizationManagerDashboard from '@/components/OrganizationManagerDashboard';
 
 const AppContent = () => {
   const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [showOrganizationLogin, setShowOrganizationLogin] = useState(false);
-  const [showCreateOrganization, setShowCreateOrganization] = useState(false);
-  const [isLoggedIntoOrg, setIsLoggedIntoOrg] = useState(!!localStorage.getItem('org_access_token'));
+  const [isOrganizationLoginOpen, setIsOrganizationLoginOpen] = useState(false);
+  const [organizationLoginData, setOrganizationLoginData] = useState(null);
+  const [isOrganizationDashboardOpen, setIsOrganizationDashboardOpen] = useState(false);
 
-  const handleSidebarToggle = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const handleOrganizationLogin = (loginResponse: any) => {
-    setIsLoggedIntoOrg(true);
-    setShowOrganizationLogin(false);
+  const handleOrganizationLogin = (loginData: any) => {
+    setOrganizationLoginData(loginData);
+    setIsOrganizationLoginOpen(false);
     
-    // For InstituteAdmin, Student, Teacher roles - go to select organization
-    if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
-      setCurrentPage('select-organization');
+    // For OrganizationManager, show organization management dashboard
+    if (user?.role === 'OrganizationManager') {
+      setIsOrganizationDashboardOpen(true);
+      setCurrentPage('select-organizations');
     } else {
-      // For OrganizationManager - go to organizations page
-      setCurrentPage('organizations');
+      // For other roles, show the regular organization dashboard
+      setIsOrganizationDashboardOpen(true);
+      setCurrentPage('organization');
     }
   };
 
   const handleBackFromOrganizationLogin = () => {
-    setShowOrganizationLogin(false);
-    setCurrentPage('organizations');
+    setIsOrganizationLoginOpen(false);
   };
 
-  const handleCreateOrganization = () => {
-    setShowCreateOrganization(true);
-  };
-
-  const handleCreateOrganizationSuccess = () => {
-    setShowCreateOrganization(false);
-    setCurrentPage('organizations');
-  };
-
-  const handleCreateOrganizationCancel = () => {
-    setShowCreateOrganization(false);
+  const handleBackFromOrganizationDashboard = () => {
+    setIsOrganizationDashboardOpen(false);
+    setOrganizationLoginData(null);
+    setCurrentPage('dashboard');
   };
 
   const handlePageChange = (page: string) => {
     if (page === 'organizations') {
-      // Check if user needs to login to organization system
-      if ((user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher' || user?.role === 'OrganizationManager') && !isLoggedIntoOrg) {
-        setShowOrganizationLogin(true);
-        return;
-      }
+      setIsOrganizationLoginOpen(true);
+    } else {
+      setCurrentPage(page);
     }
-    setCurrentPage(page);
   };
-
-  // Show organization login form
-  if (showOrganizationLogin) {
-    return (
-      <OrganizationLogin 
-        onLogin={handleOrganizationLogin}
-        onBack={handleBackFromOrganizationLogin}
-      />
-    );
-  }
-
-  // Show create organization form
-  if (showCreateOrganization) {
-    return (
-      <CreateOrganizationForm 
-        onSuccess={handleCreateOrganizationSuccess}
-        onCancel={handleCreateOrganizationCancel}
-      />
-    );
-  }
 
   const renderContent = () => {
-    switch (currentPage) {
-      case 'organizations':
-        return (
-          <OrganizationSelector 
-            onCreateClick={user?.role === 'OrganizationManager' ? handleCreateOrganization : undefined}
-          />
-        );
-      case 'select-organization':
-        return <OrganizationSelector />;
-      case 'dashboard':
-        return <Dashboard />;
-      case 'users':
-        return <div>Users</div>;
-      case 'students':
-        return <div>Students</div>;
-      case 'parents':
-        return <div>Parents</div>;
-      case 'teachers':
-        return <div>Teachers</div>;
-      case 'classes':
-        return <div>Classes</div>;
-      case 'subjects':
-        return <div>Subjects</div>;
-      case 'select-class':
-        return <div>Select Class</div>;
-      case 'select-subject':
-        return <div>Select Subject</div>;
-      case 'institutes':
-        return <div>Institutes</div>;
-      case 'attendance':
-        return <div>Attendance</div>;
-      case 'attendance-marking':
-        return <div>Attendance Marking</div>;
-      case 'attendance-markers':
-        return <div>Attendance Markers</div>;
-      case 'qr-attendance':
-        return <div>QR Attendance</div>;
-      case 'courses':
-        return <div>Courses</div>;
-      case 'create-course':
-        return <div>Create Course</div>;
-      case 'course-materials':
-        return <div>Course Materials</div>;
-      case 'lectures':
-        return <div>Lectures</div>;
-      case 'live-lectures':
-        return <div>Live Lectures</div>;
-      case 'create-lecture':
-        return <div>Create Lecture</div>;
-      case 'causes':
-        return <div>Causes</div>;
-      case 'create-cause':
-        return <div>Create Cause</div>;
-      case 'cause-materials':
-        return <div>Cause Materials</div>;
-      case 'grading':
-        return <div>Grading</div>;
-      case 'homework':
-        return <div>Homework</div>;
-      case 'exams':
-        return <div>Exams</div>;
-      case 'results':
-        return <div>Results</div>;
-      case 'profile':
-        return <div>Profile</div>;
-      case 'appearance':
-        return <div>Appearance</div>;
-      case 'institute-details':
-        return <div>Institute Details</div>;
-      case 'settings':
-        return <div>Settings</div>;
-      default:
-        return <Dashboard />;
+    if (isOrganizationLoginOpen) {
+      return (
+        <OrganizationLogin
+          onLogin={handleOrganizationLogin}
+          onBack={handleBackFromOrganizationLogin}
+        />
+      );
     }
-  };
 
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)}
-        currentPage={currentPage}
-        onPageChange={handlePageChange}
-      />
-      
-      <div className="flex-1 flex flex-col">
-        <Header 
-          onSidebarToggle={handleSidebarToggle}
+    if (isOrganizationDashboardOpen) {
+      // For OrganizationManager, show the organization management dashboard
+      if (user?.role === 'OrganizationManager') {
+        return (
+          <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+            <OrganizationManagerSidebar
+              isOpen={isSidebarOpen}
+              onClose={() => setIsSidebarOpen(false)}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              onBack={handleBackFromOrganizationDashboard}
+            />
+            <div className="flex-1 flex flex-col">
+              <Header 
+                onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                showOrganizationHeader={true}
+              />
+              <main className="flex-1">
+                <OrganizationManagerDashboard
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                />
+              </main>
+            </div>
+          </div>
+        );
+      } else {
+        // For other roles, show the regular organization dashboard
+        return (
+          <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+            <OrganizationSidebar
+              isOpen={isSidebarOpen}
+              onClose={() => setIsSidebarOpen(false)}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              organization={organizationLoginData}
+              onBack={handleBackFromOrganizationDashboard}
+            />
+            <div className="flex-1 flex flex-col">
+              <Header 
+                onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                showOrganizationHeader={true}
+              />
+              <main className="flex-1">
+                <OrganizationDashboard
+                  organization={organizationLoginData}
+                  onBack={handleBackFromOrganizationDashboard}
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                />
+              </main>
+            </div>
+          </div>
+        );
+      }
+    }
+
+    return (
+      <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
-          showOrganizationHeader={false}
         />
-        <main className="flex-1 overflow-y-auto">
-          {renderContent()}
-        </main>
+        <div className="flex-1 flex flex-col">
+          <Header 
+            onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            showOrganizationHeader={false}
+          />
+          <main className="flex-1">
+            {currentPage === 'dashboard' && <Dashboard />}
+            {currentPage === 'institutes' && <Institutes />}
+            {currentPage === 'classes' && <Classes />}
+            {currentPage === 'subjects' && <Subjects />}
+            {currentPage === 'lectures' && <Lectures />}
+            {currentPage === 'homework' && <Homework />}
+            {currentPage === 'exams' && <Exams />}
+            {currentPage === 'results' && <Results />}
+            {currentPage === 'users' && <Users />}
+            {currentPage === 'teachers' && <Teachers />}
+            {currentPage === 'students' && <Students />}
+            {currentPage === 'parents' && <Parents />}
+            {currentPage === 'attendance-markers' && <AttendanceMarkers />}
+            {currentPage === 'profile' && <Profile />}
+            {currentPage === 'appearance' && <Appearance />}
+            {currentPage === 'settings' && <Settings />}
+            {currentPage === 'select-institute' && <div>Select Institute Content</div>}
+            {currentPage === 'organizations' && <Organizations />}
+          </main>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  return renderContent();
 };
 
 export default AppContent;
