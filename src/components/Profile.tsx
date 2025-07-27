@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,19 +54,23 @@ const Profile = () => {
 
   const userPermissions = AccessControl.getPermissions((user?.role || 'Student') as UserRole);
 
-  // Fetch user data from API
+  // Fetch user data from API - same for all user roles
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user?.id) return;
       
       try {
         console.log('Fetching user data for ID:', user.id);
+        
+        // Ensure we're using the correct base URL (getBaseUrl()) for all user roles
+        apiClient.setUseBaseUrl2(false); // Always use primary base URL for user profile
+        
         const response = await apiClient.get<UserData>(`/users/${user.id}`);
         console.log('User data response:', response);
         
         setUserData(response);
         
-        // Update form data with API response
+        // Update form data with API response - same structure for all roles
         setFormData({
           name: `${response.firstName} ${response.lastName}`,
           email: response.email,
@@ -91,10 +96,43 @@ const Profile = () => {
     fetchUserData();
   }, [user?.id, toast]);
 
-  const handleSave = () => {
-    // Save logic would go here
-    console.log('Saving profile:', formData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    if (!userData) return;
+    
+    try {
+      console.log('Saving profile:', formData);
+      
+      // Ensure we're using the correct base URL for all user roles
+      apiClient.setUseBaseUrl2(false);
+      
+      const [firstName, ...lastNameParts] = formData.name.split(' ');
+      const lastName = lastNameParts.join(' ');
+      
+      const updateData = {
+        firstName,
+        lastName,
+        email: formData.email,
+        phone: formData.phone,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender
+      };
+      
+      await apiClient.put(`/users/${userData.id}`, updateData);
+      
+      toast({
+        title: "Success",
+        description: "Profile updated successfully.",
+      });
+      
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save profile changes.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleCancel = () => {
@@ -113,17 +151,38 @@ const Profile = () => {
     setIsEditing(false);
   };
 
-  const handleImageUpdate = (newImageUrl: string) => {
+  const handleImageUpdate = async (newImageUrl: string) => {
     if (userData) {
-      setUserData({
-        ...userData,
-        imageUrl: newImageUrl
-      });
+      try {
+        // Ensure we're using the correct base URL for all user roles
+        apiClient.setUseBaseUrl2(false);
+        
+        await apiClient.put(`/users/${userData.id}`, {
+          imageUrl: newImageUrl
+        });
+        
+        setUserData({
+          ...userData,
+          imageUrl: newImageUrl
+        });
+        
+        toast({
+          title: "Success",
+          description: "Profile image updated successfully.",
+        });
+      } catch (error) {
+        console.error('Error updating profile image:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update profile image.",
+          variant: "destructive"
+        });
+      }
     }
     console.log('Profile image updated:', newImageUrl);
   };
 
-  // Use the imageUrl from API response
+  // Use the imageUrl from API response - same for all user roles
   const currentImageUrl = userData?.imageUrl || '';
 
   if (loading) {
@@ -146,7 +205,7 @@ const Profile = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile Card */}
+        {/* Profile Card - Same for all user roles */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -191,7 +250,7 @@ const Profile = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Profile Image Section */}
+              {/* Profile Image Section - Same for all user roles */}
               <div className="flex justify-center pb-4 border-b">
                 <ProfileImageUpload
                   currentImageUrl={currentImageUrl}
@@ -296,7 +355,7 @@ const Profile = () => {
           </Card>
         </div>
 
-        {/* Role & Permissions Card */}
+        {/* Role & Permissions Card - Same for all user roles */}
         <div>
           <Card>
             <CardHeader>
@@ -342,7 +401,7 @@ const Profile = () => {
             </CardContent>
           </Card>
 
-          {/* Quick Stats Card */}
+          {/* Quick Stats Card - Same for all user roles */}
           <Card className="mt-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
