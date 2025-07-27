@@ -48,7 +48,7 @@ const OrganizationSelector = ({
       setIsLoading(true);
       const response = await organizationApi.getUserEnrolledOrganizations({
         page: 1,
-        limit: 50
+        limit: 10
       });
       setOrganizations(response.data);
     } catch (error) {

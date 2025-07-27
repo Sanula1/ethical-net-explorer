@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -36,6 +35,7 @@ import Appearance from '@/components/Appearance';
 import OrganizationHeader from '@/components/OrganizationHeader';
 import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
+import OrganizationSidebar from '@/components/OrganizationSidebar';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
 
 const AppContent = () => {
