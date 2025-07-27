@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +30,26 @@ interface CoursesResponse {
   };
 }
 
+interface OrganizationCourse {
+  causeId: string;
+  organizationId: string;
+  title: string;
+  description: string;
+  introVideoUrl?: string;
+  isPublic: boolean;
+  createdAt: any;
+  updatedAt: any;
+  organization: {
+    organizationId: string;
+    name: string;
+    type: string;
+  };
+  _count: {
+    lectures: number;
+    assignments: number;
+  };
+}
+
 interface OrganizationDashboardProps {
   organization: any;
   onBack: () => void;
@@ -46,23 +65,20 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
 
   useEffect(() => {
     if (currentPage === 'courses') {
-      loadCourses();
+      loadOrganizationCourses();
     }
-  }, [currentPage]);
+  }, [currentPage, organization.organizationId]);
 
-  const loadCourses = async () => {
+  const loadOrganizationCourses = async () => {
     try {
       setIsLoading(true);
-      const response = await organizationSpecificApi.get<CoursesResponse>('/organization/api/v1/causes', {
-        page: 1,
-        limit: 10
-      });
-      setCourses(response.data);
+      const response = await organizationSpecificApi.get<OrganizationCourse[]>(`/organization/api/v1/causes/organization/${organization.organizationId}`);
+      setCourses(response as any);
     } catch (error) {
-      console.error('Error loading courses:', error);
+      console.error('Error loading organization courses:', error);
       toast({
         title: "Error",
-        description: "Failed to load courses",
+        description: "Failed to load organization courses",
         variant: "destructive",
       });
     } finally {
@@ -181,7 +197,7 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Courses</h2>
+              <h2 className="text-2xl font-bold">Organization Courses</h2>
               <Button onClick={() => setShowCreateCourseForm(true)}>
                 Create Course
               </Button>
@@ -219,6 +235,17 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
                         </Badge>
                       </div>
                     </CardHeader>
+                    <CardContent>
+                      {course._count && (
+                        <div className="flex gap-4 text-sm text-gray-600 mb-3">
+                          <span>Lectures: {course._count.lectures}</span>
+                          <span>Assignments: {course._count.assignments}</span>
+                        </div>
+                      )}
+                      <Button size="sm" variant="outline" className="w-full">
+                        Select Course
+                      </Button>
+                    </CardContent>
                   </Card>
                 ))}
               </div>
@@ -229,7 +256,7 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
                 <CardContent className="p-6">
                   <div className="text-center text-gray-500">
                     <BookOpen className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p>No courses found</p>
+                    <p>No courses found for this organization</p>
                   </div>
                 </CardContent>
               </Card>
