@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -179,6 +180,30 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       label: 'QR Attendance',
       icon: QrCode,
       permission: 'mark-attendance',
+      alwaysShow: false
+    }
+  ];
+
+  const coursesItems = [
+    {
+      id: 'courses',
+      label: 'All Courses',
+      icon: Award,
+      permission: 'view-courses',
+      alwaysShow: false
+    },
+    {
+      id: 'create-course',
+      label: 'Create Course',
+      icon: BookOpen,
+      permission: 'create-course',
+      alwaysShow: false
+    },
+    {
+      id: 'course-materials',
+      label: 'Course Materials',
+      icon: FileText,
+      permission: 'view-course-materials',
       alwaysShow: false
     }
   ];
@@ -449,10 +474,11 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance and academic sections if institute is selected and not OrganizationManager */}
+            {/* Only show attendance, courses and academic sections if institute is selected and not OrganizationManager */}
             {selectedInstitute && user?.role !== 'OrganizationManager' && (
               <>
                 <SidebarSection title="Attendance" items={attendanceItems} />
+                <SidebarSection title="Courses" items={coursesItems} />
                 <SidebarSection title="Academic" items={systemItems} />
               </>
             )}
