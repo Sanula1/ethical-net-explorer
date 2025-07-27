@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,15 +13,9 @@ import { organizationApi, Organization, OrganizationQueryParams } from '@/api/or
 import { useToast } from '@/hooks/use-toast';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import OrganizationPortal from './OrganizationPortal';
 
 const Organizations = () => {
-  const { user, setSelectedOrganization } = useAuth();
-
-  if (user?.role === 'OrganizationManager') {
-    return <OrganizationPortal />;
-  }
-
+  const { setSelectedOrganization } = useAuth();
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [searchTerm, setSearchTerm] = useState('');

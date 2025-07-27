@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -99,13 +100,6 @@ const AppContent = () => {
     setShowCreateOrgForm(false);
   };
 
-  const handleOrganizationLogout = () => {
-    setOrganizationLoginData(null);
-    setSelectedOrganization(null);
-    localStorage.removeItem('org_access_token');
-    setCurrentPage('organizations');
-  };
-
   const renderComponent = () => {
     // Handle organization-related pages
     if (currentPage === 'organizations') {
@@ -132,7 +126,7 @@ const AppContent = () => {
           <OrganizationSelector
             onOrganizationSelect={handleOrganizationSelect}
             onBack={handleBackToMain}
-            onLogout={handleOrganizationLogout}
+            onCreateOrganization={handleCreateOrganization}
             userPermissions={organizationLoginData?.permissions}
           />
         );
@@ -144,7 +138,7 @@ const AppContent = () => {
         <OrganizationSelector
           onOrganizationSelect={handleOrganizationSelect}
           onBack={handleBackToMain}
-          onLogout={handleOrganizationLogout}
+          onCreateOrganization={handleCreateOrganization}
           userPermissions={organizationLoginData?.permissions}
         />
       );
