@@ -14,10 +14,9 @@ import {
 
 interface HeaderProps {
   onMenuClick: () => void;
-  organizationName?: string;
 }
 
-const Header = ({ onMenuClick, organizationName }: HeaderProps) => {
+const Header = ({ onMenuClick }: HeaderProps) => {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
@@ -38,7 +37,7 @@ const Header = ({ onMenuClick, organizationName }: HeaderProps) => {
         </Button>
         
         <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white truncate">
-          {organizationName || 'EduManage'}
+          EduManage
         </h1>
         
         <div className="flex items-center space-x-1 sm:space-x-2">

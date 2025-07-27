@@ -73,18 +73,17 @@ export interface Child {
   };
 }
 
-// Updated Organization interface to match API structure
 export interface Organization {
-  organizationId: string;
+  id: string;
   name: string;
-  type: 'INSTITUTE' | 'GLOBAL';
-  isPublic: boolean;
-  instituteId: string | null;
-  userRole?: string;
-  isVerified?: boolean;
-  joinedAt?: string;
-  memberCount?: number;
-  causeCount?: number;
+  code: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LoginCredentials {
