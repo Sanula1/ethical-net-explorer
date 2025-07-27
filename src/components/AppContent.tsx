@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -64,6 +65,11 @@ const AppContent = () => {
   const handleBackToOrganizations = () => {
     setOrganizationLoginData(null);
     setCurrentPage('organizations');
+  };
+
+  const handleMockLogin = (user: any) => {
+    // This is for mock login functionality - currently handled by AuthContext
+    console.log('Mock login user:', user);
   };
 
   const renderOrganizationContent = () => {
@@ -404,7 +410,7 @@ const AppContent = () => {
   };
 
   if (!user) {
-    return <Login loginFunction={login} />;
+    return <Login loginFunction={login} onLogin={handleMockLogin} />;
   }
 
   // If in organization mode, render without main layout
