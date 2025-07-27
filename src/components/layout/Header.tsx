@@ -13,14 +13,32 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface HeaderProps {
-  onMenuClick: () => void;
+  onSidebarToggle?: () => void;
+  onMenuClick?: () => void;
+  currentPage?: string;
+  onPageChange?: (page: string) => void;
+  showOrganizationHeader?: boolean;
 }
 
-const Header = ({ onMenuClick }: HeaderProps) => {
+const Header = ({ 
+  onSidebarToggle, 
+  onMenuClick, 
+  currentPage, 
+  onPageChange, 
+  showOrganizationHeader 
+}: HeaderProps) => {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handleMenuClick = () => {
+    if (onSidebarToggle) {
+      onSidebarToggle();
+    } else if (onMenuClick) {
+      onMenuClick();
+    }
   };
 
   return (
@@ -29,7 +47,7 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         <Button
           variant="ghost"
           size="sm"
-          onClick={onMenuClick}
+          onClick={handleMenuClick}
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
           aria-label="Open menu"
         >
