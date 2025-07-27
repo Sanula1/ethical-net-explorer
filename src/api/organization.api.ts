@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 import { getBaseUrl2 } from '@/contexts/utils/auth.api';
 
@@ -61,6 +60,7 @@ export interface OrganizationLoginResponse {
     email: string;
     name: string;
     isFirstLogin: boolean;
+    lastLoginAt: any;
   };
   permissions: {
     organizations: string[];
@@ -167,4 +167,78 @@ class OrganizationApiClient {
   }
 }
 
+// Organization-specific API client that uses baseUrl2
+class OrganizationSpecificApiClient {
+  private getBaseUrl2(): string {
+    return getBaseUrl2();
+  }
+
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    };
+
+    const token = localStorage.getItem('org_access_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
+  }
+
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        message: `HTTP Error: ${response.status}`,
+        statusCode: response.status,
+        error: response.statusText
+      }));
+      
+      throw new Error(errorData.message || `HTTP Error: ${response.status}`);
+    }
+
+    const contentType = response.headers.get('Content-Type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    }
+    
+    return {} as T;
+  }
+
+  async get<T = any>(endpoint: string, params?: Record<string, any>): Promise<T> {
+    const baseUrl = this.getBaseUrl2();
+    const url = new URL(`${baseUrl}${endpoint}`);
+    
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.append(key, String(value));
+        }
+      });
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: this.getHeaders()
+    });
+
+    return this.handleResponse<T>(response);
+  }
+
+  async post<T = any>(endpoint: string, data?: any): Promise<T> {
+    const baseUrl = this.getBaseUrl2();
+    const url = `${baseUrl}${endpoint}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: data ? JSON.stringify(data) : undefined
+    });
+
+    return this.handleResponse<T>(response);
+  }
+}
+
 export const organizationApi = new OrganizationApiClient();
+export const organizationSpecificApi = new OrganizationSpecificApiClient();

@@ -46,7 +46,7 @@ const OrganizationSelector = ({
   const loadOrganizations = async () => {
     try {
       setIsLoading(true);
-      const response = await organizationApi.getOrganizations({
+      const response = await organizationApi.getUserEnrolledOrganizations({
         page: 1,
         limit: 50
       });
@@ -176,7 +176,8 @@ const OrganizationSelector = ({
           {filteredOrganizations.map((organization) => (
             <Card
               key={organization.organizationId}
-              className="hover:shadow-lg transition-shadow"
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => handleOrganizationSelect(organization)}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -187,7 +188,7 @@ const OrganizationSelector = ({
                     <div>
                       <CardTitle className="text-lg">{organization.name}</CardTitle>
                       <CardDescription className="text-sm">
-                        {organization.joinedAt && `Joined: ${new Date(organization.joinedAt).toLocaleDateString()}`}
+                        Joined: {new Date(organization.joinedAt!).toLocaleDateString()}
                       </CardDescription>
                     </div>
                   </div>
@@ -204,38 +205,27 @@ const OrganizationSelector = ({
                     <Badge className={getTypeColor(organization.type)}>
                       {organization.type}
                     </Badge>
-                    {organization.userRole && (
-                      <Badge className={getRoleColor(organization.userRole)}>
-                        {organization.userRole}
-                      </Badge>
-                    )}
+                    <Badge className={getRoleColor(organization.userRole!)}>
+                      {organization.userRole}
+                    </Badge>
                   </div>
                   
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center space-x-1">
                       <Users className="h-4 w-4" />
-                      <span>{organization.memberCount || 0} members</span>
+                      <span>{organization.memberCount} members</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <Award className="h-4 w-4" />
-                      <span>{organization.causeCount || 0} causes</span>
+                      <span>{organization.causeCount} causes</span>
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    {organization.isPublic && (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                        Public
-                      </Badge>
-                    )}
-                    <Button
-                      size="sm"
-                      onClick={() => handleOrganizationSelect(organization)}
-                      className="ml-auto"
-                    >
-                      Select Organization
-                    </Button>
-                  </div>
+                  {organization.isPublic && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                      Public
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
