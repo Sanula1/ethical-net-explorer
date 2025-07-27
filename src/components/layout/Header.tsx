@@ -13,13 +13,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface HeaderProps {
-  onSidebarToggle: () => void;
-  currentPage: string;
-  onPageChange: (page: string) => void;
-  showOrganizationHeader?: boolean;
+  onMenuClick: () => void;
 }
 
-const Header = ({ onSidebarToggle, currentPage, onPageChange, showOrganizationHeader = false }: HeaderProps) => {
+const Header = ({ onMenuClick }: HeaderProps) => {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
@@ -32,7 +29,7 @@ const Header = ({ onSidebarToggle, currentPage, onPageChange, showOrganizationHe
         <Button
           variant="ghost"
           size="sm"
-          onClick={onSidebarToggle}
+          onClick={onMenuClick}
           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
           aria-label="Open menu"
         >
@@ -40,7 +37,7 @@ const Header = ({ onSidebarToggle, currentPage, onPageChange, showOrganizationHe
         </Button>
         
         <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white truncate">
-          {showOrganizationHeader ? 'Organization Manager' : 'EduManage'}
+          EduManage
         </h1>
         
         <div className="flex items-center space-x-1 sm:space-x-2">
