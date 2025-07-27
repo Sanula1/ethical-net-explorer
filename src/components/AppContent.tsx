@@ -55,7 +55,7 @@ const AppContent = () => {
   const handleOrganizationLogin = (loginResponse: any) => {
     console.log('Organization login successful:', loginResponse);
     setOrganizationLoginData(loginResponse);
-    setCurrentPage('organization-selector');
+    setCurrentPage('organizations');
   };
 
   const handleOrganizationSelect = (organization: any) => {
@@ -70,8 +70,9 @@ const AppContent = () => {
     setCurrentPage('dashboard');
   };
 
-  const handleBackToOrganizationSelector = () => {
-    setCurrentPage('organization-selector');
+  const handleBackToOrganizationLogin = () => {
+    setOrganizationLoginData(null);
+    setCurrentPage('organizations');
   };
 
   const handleBackToMain = () => {
@@ -92,26 +93,30 @@ const AppContent = () => {
   const handleCreateOrganizationSuccess = (organization: any) => {
     console.log('Organization created successfully:', organization);
     setShowCreateOrgForm(false);
-    setCurrentPage('organization-selector');
+    setCurrentPage('organizations');
   };
 
   const handleCreateOrganizationCancel = () => {
     setShowCreateOrgForm(false);
+    setCurrentPage('organizations');
   };
 
   const renderComponent = () => {
     // For Organization Manager - handle organization flow
     if (user?.role === 'OrganizationManager') {
+      // Handle create organization form
+      if (showCreateOrgForm) {
+        return (
+          <CreateOrganizationForm
+            onSuccess={handleCreateOrganizationSuccess}
+            onCancel={handleCreateOrganizationCancel}
+          />
+        );
+      }
+
+      // Handle organizations page
       if (currentPage === 'organizations') {
-        if (showCreateOrgForm) {
-          return (
-            <CreateOrganizationForm
-              onSuccess={handleCreateOrganizationSuccess}
-              onCancel={handleCreateOrganizationCancel}
-            />
-          );
-        }
-        
+        // If not logged into organization system, show login
         if (!organizationLoginData) {
           return (
             <OrganizationLogin
@@ -121,27 +126,17 @@ const AppContent = () => {
           );
         }
         
+        // If logged in but no organization selected, show selector
         if (!selectedOrganization) {
           return (
             <OrganizationSelector
               onOrganizationSelect={handleOrganizationSelect}
-              onBack={handleBackToMain}
+              onBack={handleBackToOrganizationLogin}
               onCreateOrganization={handleCreateOrganization}
               userPermissions={organizationLoginData?.permissions}
             />
           );
         }
-      }
-
-      if (currentPage === 'organization-selector') {
-        return (
-          <OrganizationSelector
-            onOrganizationSelect={handleOrganizationSelect}
-            onBack={handleBackToMain}
-            onCreateOrganization={handleCreateOrganization}
-            userPermissions={organizationLoginData?.permissions}
-          />
-        );
       }
 
       // For OrganizationManager, handle basic pages
@@ -455,11 +450,6 @@ const AppContent = () => {
 
   if (!user) {
     return <Login onLogin={login} loginFunction={login} />;
-  }
-
-  // If organizations page is active, render full screen without sidebar
-  if (currentPage === 'organizations' && !selectedOrganization) {
-    return renderComponent();
   }
 
   return (

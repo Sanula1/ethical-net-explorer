@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -41,9 +40,10 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state and user role
   const getMenuItems = () => {
-    // For OrganizationManager role, show limited menu items
+    // For OrganizationManager role
     if (user?.role === 'OrganizationManager') {
-      return [
+      // If they have logged into organization system, show Organizations menu
+      const baseOrgItems = [
         {
           id: 'organizations',
           label: 'Organizations',
@@ -52,6 +52,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           alwaysShow: true
         }
       ];
+      
+      return baseOrgItems;
     }
 
     // Base items that are always available for all other users
