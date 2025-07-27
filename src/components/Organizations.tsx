@@ -8,7 +8,11 @@ import { Building2, Search, Plus, Edit2, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationApi, Organization } from '@/api/organization.api';
 
-const Organizations = () => {
+interface OrganizationsProps {
+  onOrganizationLoginClick?: () => void;
+}
+
+const Organizations = ({ onOrganizationLoginClick }: OrganizationsProps) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,10 +112,12 @@ const Organizations = () => {
           <h1 className="text-3xl font-bold text-foreground">Organizations</h1>
           <p className="text-muted-foreground">Manage your organizations</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Organization
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={onOrganizationLoginClick}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Organization
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filter */}
