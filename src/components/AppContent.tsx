@@ -39,7 +39,7 @@ import OrganizationDashboard from '@/components/OrganizationDashboard';
 import OrganizationCauses from '@/components/OrganizationCauses';
 
 const AppContent = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -52,7 +52,7 @@ const AppContent = () => {
   };
 
   if (!user) {
-    return <Login onLogin={() => {}} loginFunction={() => {}} />;
+    return <Login onLogin={() => {}} loginFunction={login} />;
   }
 
   return (
@@ -97,8 +97,8 @@ const AppContent = () => {
               <Route path="/live-lectures" element={<LiveLectures />} />
               <Route path="/organizations" element={<Organizations />} />
               <Route path="/organization-selector" element={<OrganizationSelector />} />
-              <Route path="/organization-login" element={<OrganizationLogin />} />
-              <Route path="/organization-dashboard" element={<OrganizationDashboard />} />
+              <Route path="/organization-login" element={<OrganizationLogin onLogin={() => {}} onBack={() => {}} />} />
+              <Route path="/organization-dashboard" element={<OrganizationDashboard organization={{}} onBack={() => {}} currentPage={currentPage} onPageChange={handlePageChange} />} />
               <Route path="/causes" element={<OrganizationCauses />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
