@@ -35,6 +35,8 @@ import Appearance from '@/components/Appearance';
 import OrganizationHeader from '@/components/OrganizationHeader';
 import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
+import OrganizationDashboard from '@/components/OrganizationDashboard';
+import OrganizationSidebar from '@/components/OrganizationSidebar';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
 
 const AppContent = () => {
@@ -67,7 +69,7 @@ const AppContent = () => {
       apiClient.setUseBaseUrl2(true);
     });
     
-    setCurrentPage('dashboard');
+    setCurrentPage('organization');
   };
 
   const handleBackToOrganizationLogin = () => {
@@ -75,8 +77,14 @@ const AppContent = () => {
     setCurrentPage('organizations');
   };
 
+  const handleBackToOrganizationSelector = () => {
+    setSelectedOrganization(null);
+    setCurrentPage('organizations');
+  };
+
   const handleBackToMain = () => {
     setOrganizationLoginData(null);
+    setSelectedOrganization(null);
     
     // Switch back to using baseUrl for main API calls
     import('@/api/client').then(({ apiClient }) => {
@@ -137,6 +145,28 @@ const AppContent = () => {
             />
           );
         }
+      }
+
+      // If organization is selected, show organization dashboard with sidebar
+      if (selectedOrganization) {
+        return (
+          <div className="flex h-screen">
+            <OrganizationSidebar
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              organization={selectedOrganization}
+              onBack={handleBackToOrganizationSelector}
+            />
+            <div className="flex-1 overflow-auto">
+              <OrganizationDashboard
+                organization={selectedOrganization}
+                onBack={handleBackToOrganizationSelector}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          </div>
+        );
       }
 
       // For OrganizationManager, handle basic pages
@@ -450,6 +480,11 @@ const AppContent = () => {
 
   if (!user) {
     return <Login onLogin={login} loginFunction={login} />;
+  }
+
+  // If OrganizationManager has selected an organization, render without main layout
+  if (user?.role === 'OrganizationManager' && selectedOrganization) {
+    return renderComponent();
   }
 
   return (

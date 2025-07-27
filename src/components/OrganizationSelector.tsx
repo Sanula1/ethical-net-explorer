@@ -176,8 +176,7 @@ const OrganizationSelector = ({
           {filteredOrganizations.map((organization) => (
             <Card
               key={organization.organizationId}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleOrganizationSelect(organization)}
+              className="hover:shadow-lg transition-shadow"
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -223,11 +222,20 @@ const OrganizationSelector = ({
                     </div>
                   </div>
                   
-                  {organization.isPublic && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                      Public
-                    </Badge>
-                  )}
+                  <div className="flex items-center justify-between">
+                    {organization.isPublic && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        Public
+                      </Badge>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => handleOrganizationSelect(organization)}
+                      className="ml-auto"
+                    >
+                      Select Organization
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
