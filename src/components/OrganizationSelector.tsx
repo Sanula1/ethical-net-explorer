@@ -6,17 +6,27 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Building2, Search, Plus, LayoutGrid, List, LogOut } from 'lucide-react';
+import { Building2, Search, Plus, LayoutGrid, List, LogOut, ArrowLeft } from 'lucide-react';
 import { organizationSpecificApi, Organization } from '@/api/organization.api';
 import { useToast } from '@/hooks/use-toast';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 interface OrganizationSelectorProps {
-  onLogout: () => void;
+  onLogout?: () => void;
+  onOrganizationSelect?: (organization: Organization) => void;
+  onBack?: () => void;
+  onCreateOrganization?: () => void;
+  userPermissions?: any;
 }
 
-const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
+const OrganizationSelector = ({ 
+  onLogout, 
+  onOrganizationSelect, 
+  onBack, 
+  onCreateOrganization, 
+  userPermissions 
+}: OrganizationSelectorProps) => {
   const { toast } = useToast();
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,7 +42,7 @@ const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
   const fetchOrganizations = async () => {
     setIsLoading(true);
     try {
-      const params = {
+      const params: any = {
         page: currentPage,
         limit: 10,
       };
@@ -68,6 +78,14 @@ const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
       title: 'Success',
       description: 'Organization created successfully',
     });
+  };
+
+  const handleOrganizationSelect = (organization: Organization) => {
+    if (onOrganizationSelect) {
+      onOrganizationSelect(organization);
+    } else {
+      console.log('Select organization:', organization.organizationId);
+    }
   };
 
   const OrganizationCard = ({ org }: { org: Organization }) => (
@@ -117,7 +135,7 @@ const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
 
         <div className="pt-2">
           <Button
-            onClick={() => console.log('Select organization:', org.organizationId)}
+            onClick={() => handleOrganizationSelect(org)}
             className="w-full"
           >
             Select Organization
@@ -131,11 +149,19 @@ const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Select Organization</h1>
-          <p className="text-muted-foreground">
-            Choose an organization to manage
-          </p>
+        <div className="flex items-center space-x-4">
+          {onBack && (
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          )}
+          <div>
+            <h1 className="text-2xl font-bold">Select Organization</h1>
+            <p className="text-muted-foreground">
+              Choose an organization to manage
+            </p>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -155,10 +181,12 @@ const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
               />
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={onLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
+          {onLogout && (
+            <Button variant="outline" onClick={onLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          )}
         </div>
       </div>
 
@@ -251,7 +279,7 @@ const OrganizationSelector = ({ onLogout }: OrganizationSelectorProps) => {
                         </TableCell>
                         <TableCell>
                           <Button
-                            onClick={() => console.log('Select organization:', org.organizationId)}
+                            onClick={() => handleOrganizationSelect(org)}
                             size="sm"
                           >
                             Select
