@@ -153,33 +153,20 @@ const Profile = () => {
 
   const handleImageUpdate = async (newImageUrl: string) => {
     if (userData) {
-      try {
-        // Ensure we're using the correct base URL for all user roles
-        apiClient.setUseBaseUrl2(false);
-        
-        await apiClient.put(`/users/${userData.id}`, {
-          imageUrl: newImageUrl
-        });
-        
-        setUserData({
-          ...userData,
-          imageUrl: newImageUrl
-        });
-        
-        toast({
-          title: "Success",
-          description: "Profile image updated successfully.",
-        });
-      } catch (error) {
-        console.error('Error updating profile image:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update profile image.",
-          variant: "destructive"
-        });
-      }
+      // Since the image upload is successful, just update the local state
+      // The API already handled the image upload and returned the new URL
+      setUserData({
+        ...userData,
+        imageUrl: newImageUrl
+      });
+      
+      toast({
+        title: "Success",
+        description: "Profile image updated successfully.",
+      });
+      
+      console.log('Profile image updated successfully:', newImageUrl);
     }
-    console.log('Profile image updated:', newImageUrl);
   };
 
   // Use the imageUrl from API response - same for all user roles
