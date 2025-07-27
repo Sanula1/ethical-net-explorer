@@ -46,9 +46,9 @@ const OrganizationSelector = ({
   const loadOrganizations = async () => {
     try {
       setIsLoading(true);
-      const response = await organizationApi.getUserEnrolledOrganizations({
+      const response = await organizationApi.getOrganizations({
         page: 1,
-        limit: 10
+        limit: 50
       });
       setOrganizations(response.data);
     } catch (error) {
@@ -176,8 +176,7 @@ const OrganizationSelector = ({
           {filteredOrganizations.map((organization) => (
             <Card
               key={organization.organizationId}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => handleOrganizationSelect(organization)}
+              className="hover:shadow-lg transition-shadow"
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -188,7 +187,7 @@ const OrganizationSelector = ({
                     <div>
                       <CardTitle className="text-lg">{organization.name}</CardTitle>
                       <CardDescription className="text-sm">
-                        Joined: {new Date(organization.joinedAt!).toLocaleDateString()}
+                        {organization.joinedAt && `Joined: ${new Date(organization.joinedAt).toLocaleDateString()}`}
                       </CardDescription>
                     </div>
                   </div>
@@ -205,27 +204,38 @@ const OrganizationSelector = ({
                     <Badge className={getTypeColor(organization.type)}>
                       {organization.type}
                     </Badge>
-                    <Badge className={getRoleColor(organization.userRole!)}>
-                      {organization.userRole}
-                    </Badge>
+                    {organization.userRole && (
+                      <Badge className={getRoleColor(organization.userRole)}>
+                        {organization.userRole}
+                      </Badge>
+                    )}
                   </div>
                   
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center space-x-1">
                       <Users className="h-4 w-4" />
-                      <span>{organization.memberCount} members</span>
+                      <span>{organization.memberCount || 0} members</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <Award className="h-4 w-4" />
-                      <span>{organization.causeCount} causes</span>
+                      <span>{organization.causeCount || 0} causes</span>
                     </div>
                   </div>
                   
-                  {organization.isPublic && (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                      Public
-                    </Badge>
-                  )}
+                  <div className="flex items-center justify-between">
+                    {organization.isPublic && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                        Public
+                      </Badge>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => handleOrganizationSelect(organization)}
+                      className="ml-auto"
+                    >
+                      Select Organization
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

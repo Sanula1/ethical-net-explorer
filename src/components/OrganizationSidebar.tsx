@@ -1,89 +1,152 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Building2, User, Palette, ArrowLeft } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Building2,
+  Images,
+  Users,
+  BookOpen,
+  User,
+  Palette,
+  LogOut,
+  ArrowLeft,
+  Award
+} from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface OrganizationSidebarProps {
   currentPage: string;
   onPageChange: (page: string) => void;
-  onBack?: () => void;
-  userRole?: string;
+  organization: any;
+  onBack: () => void;
 }
 
-const OrganizationSidebar = ({ 
-  currentPage, 
-  onPageChange, 
-  onBack, 
-  userRole 
-}: OrganizationSidebarProps) => {
+const OrganizationSidebar = ({ currentPage, onPageChange, organization, onBack }: OrganizationSidebarProps) => {
+  const { logout } = useAuth();
+
   const menuItems = [
     {
-      id: 'select-organization',
-      label: 'Select Organization',
+      id: 'organization',
+      label: 'Organization',
       icon: Building2,
-      roles: ['InstituteAdmin', 'Student', 'Teacher']
     },
+    {
+      id: 'gallery',
+      label: 'Gallery',
+      icon: Images,
+    },
+    {
+      id: 'students',
+      label: 'Students',
+      icon: Users,
+    },
+    {
+      id: 'courses',
+      label: 'Courses',
+      icon: Award,
+    },
+  ];
+
+  const settingsItems = [
     {
       id: 'profile',
       label: 'Profile',
       icon: User,
-      roles: ['InstituteAdmin', 'Student', 'Teacher']
     },
     {
       id: 'appearance',
       label: 'Appearance',
       icon: Palette,
-      roles: ['InstituteAdmin', 'Student', 'Teacher']
-    }
+    },
   ];
 
-  // Filter menu items based on user role
-  const availableItems = menuItems.filter(item => 
-    !item.roles || item.roles.includes(userRole || '')
-  );
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-full">
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-6">
-          {onBack && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="p-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Organization Portal
-          </h2>
+    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-screen">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center space-x-2">
+          <Building2 className="h-6 w-6 text-blue-600" />
+          <span className="font-bold text-lg text-gray-900 dark:text-white">
+            {organization.name}
+          </span>
         </div>
-        
-        <nav className="space-y-2">
-          {availableItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentPage === item.id;
-            
-            return (
-              <Button
-                key={item.id}
-                variant={isActive ? "default" : "ghost"}
-                className={`w-full justify-start ${
-                  isActive 
-                    ? 'bg-blue-600 text-white' 
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-                onClick={() => onPageChange(item.id)}
-              >
-                <Icon className="h-5 w-5 mr-3" />
-                {item.label}
-              </Button>
-            );
-          })}
-        </nav>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="p-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Navigation */}
+      <ScrollArea className="flex-1 px-3 py-4">
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-3">
+              Main
+            </h3>
+            <div className="space-y-1">
+              {menuItems.map((item) => (
+                <Button
+                  key={item.id}
+                  variant={currentPage === item.id ? "secondary" : "ghost"}
+                  className={`w-full justify-start h-10 px-3 text-sm ${
+                    currentPage === item.id 
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 border-r-2 border-blue-600' 
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  onClick={() => onPageChange(item.id)}
+                >
+                  <item.icon className="mr-3 h-4 w-4" />
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-3">
+              Settings
+            </h3>
+            <div className="space-y-1">
+              {settingsItems.map((item) => (
+                <Button
+                  key={item.id}
+                  variant={currentPage === item.id ? "secondary" : "ghost"}
+                  className={`w-full justify-start h-10 px-3 text-sm ${
+                    currentPage === item.id 
+                      ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 border-r-2 border-blue-600' 
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  onClick={() => onPageChange(item.id)}
+                >
+                  <item.icon className="mr-3 h-4 w-4" />
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 text-sm"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
       </div>
     </div>
   );

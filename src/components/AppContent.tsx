@@ -35,6 +35,7 @@ import Appearance from '@/components/Appearance';
 import OrganizationHeader from '@/components/OrganizationHeader';
 import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
+import OrganizationDashboard from '@/components/OrganizationDashboard';
 import OrganizationSidebar from '@/components/OrganizationSidebar';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
 
@@ -56,7 +57,7 @@ const AppContent = () => {
   const handleOrganizationLogin = (loginResponse: any) => {
     console.log('Organization login successful:', loginResponse);
     setOrganizationLoginData(loginResponse);
-    setCurrentPage('organization-selector');
+    setCurrentPage('organizations');
   };
 
   const handleOrganizationSelect = (organization: any) => {
@@ -68,15 +69,22 @@ const AppContent = () => {
       apiClient.setUseBaseUrl2(true);
     });
     
-    setCurrentPage('dashboard');
+    setCurrentPage('organization');
+  };
+
+  const handleBackToOrganizationLogin = () => {
+    setOrganizationLoginData(null);
+    setCurrentPage('organizations');
   };
 
   const handleBackToOrganizationSelector = () => {
-    setCurrentPage('organization-selector');
+    setSelectedOrganization(null);
+    setCurrentPage('organizations');
   };
 
   const handleBackToMain = () => {
     setOrganizationLoginData(null);
+    setSelectedOrganization(null);
     
     // Switch back to using baseUrl for main API calls
     import('@/api/client').then(({ apiClient }) => {
@@ -93,16 +101,18 @@ const AppContent = () => {
   const handleCreateOrganizationSuccess = (organization: any) => {
     console.log('Organization created successfully:', organization);
     setShowCreateOrgForm(false);
-    setCurrentPage('organization-selector');
+    setCurrentPage('organizations');
   };
 
   const handleCreateOrganizationCancel = () => {
     setShowCreateOrgForm(false);
+    setCurrentPage('organizations');
   };
 
   const renderComponent = () => {
-    // Handle organization-related pages
-    if (currentPage === 'organizations') {
+    // For Organization Manager - handle organization flow
+    if (user?.role === 'OrganizationManager') {
+      // Handle create organization form
       if (showCreateOrgForm) {
         return (
           <CreateOrganizationForm
@@ -111,37 +121,65 @@ const AppContent = () => {
           />
         );
       }
-      
-      if (!organizationLoginData) {
-        return (
-          <OrganizationLogin
-            onLogin={handleOrganizationLogin}
-            onBack={handleBackToMain}
-          />
-        );
-      }
-      
-      if (!selectedOrganization) {
-        return (
-          <OrganizationSelector
-            onOrganizationSelect={handleOrganizationSelect}
-            onBack={handleBackToMain}
-            onCreateOrganization={handleCreateOrganization}
-            userPermissions={organizationLoginData?.permissions}
-          />
-        );
-      }
-    }
 
-    if (currentPage === 'organization-selector') {
-      return (
-        <OrganizationSelector
-          onOrganizationSelect={handleOrganizationSelect}
-          onBack={handleBackToMain}
-          onCreateOrganization={handleCreateOrganization}
-          userPermissions={organizationLoginData?.permissions}
-        />
-      );
+      // Handle organizations page
+      if (currentPage === 'organizations') {
+        // If not logged into organization system, show login
+        if (!organizationLoginData) {
+          return (
+            <OrganizationLogin
+              onLogin={handleOrganizationLogin}
+              onBack={handleBackToMain}
+            />
+          );
+        }
+        
+        // If logged in but no organization selected, show selector
+        if (!selectedOrganization) {
+          return (
+            <OrganizationSelector
+              onOrganizationSelect={handleOrganizationSelect}
+              onBack={handleBackToOrganizationLogin}
+              onCreateOrganization={handleCreateOrganization}
+              userPermissions={organizationLoginData?.permissions}
+            />
+          );
+        }
+      }
+
+      // If organization is selected, show organization dashboard with sidebar
+      if (selectedOrganization) {
+        return (
+          <div className="flex h-screen">
+            <OrganizationSidebar
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              organization={selectedOrganization}
+              onBack={handleBackToOrganizationSelector}
+            />
+            <div className="flex-1 overflow-auto">
+              <OrganizationDashboard
+                organization={selectedOrganization}
+                onBack={handleBackToOrganizationSelector}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          </div>
+        );
+      }
+
+      // For OrganizationManager, handle basic pages
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'profile':
+          return <Profile />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
     }
 
     // System Admin doesn't need institute/class/subject selection flow
@@ -195,54 +233,6 @@ const AppContent = () => {
           return <InstituteDetails />;
         case 'appearance':
           return <Appearance />;
-        default:
-          return <Dashboard />;
-      }
-    }
-
-    // For Organization Manager - show organizations list or organization-specific dashboard
-    if (user?.role === 'OrganizationManager') {
-      if (!selectedOrganization && currentPage !== 'organizations') {
-        return <Organizations />;
-      }
-
-      // Add Organization Header for specific sections
-      const shouldShowOrgHeader = ['dashboard', 'students', 'lectures', 'gallery'].includes(currentPage);
-      
-      const getPageTitle = () => {
-        switch (currentPage) {
-          case 'dashboard': return 'Dashboard';
-          case 'students': return 'Students';
-          case 'lectures': return 'Lectures';
-          case 'gallery': return 'Gallery';
-          default: return 'Management';
-        }
-      };
-
-      const renderWithHeader = (component: React.ReactNode) => (
-        <>
-          {shouldShowOrgHeader && <OrganizationHeader title={getPageTitle()} />}
-          {component}
-        </>
-      );
-
-      switch (currentPage) {
-        case 'organizations':
-          return <Organizations />;
-        case 'dashboard':
-          return renderWithHeader(<Dashboard />);
-        case 'students':
-          return renderWithHeader(<Students />);
-        case 'lectures':
-          return renderWithHeader(<Lectures />);
-        case 'gallery':
-          return renderWithHeader(<Gallery />);
-        case 'appearance':
-          return <Appearance />;
-        case 'profile':
-          return <Profile />;
-        case 'settings':
-          return <Settings />;
         default:
           return <Dashboard />;
       }
@@ -492,8 +482,8 @@ const AppContent = () => {
     return <Login onLogin={login} loginFunction={login} />;
   }
 
-  // If organizations page is active, render full screen without sidebar
-  if (currentPage === 'organizations' && !selectedOrganization) {
+  // If OrganizationManager has selected an organization, render without main layout
+  if (user?.role === 'OrganizationManager' && selectedOrganization) {
     return renderComponent();
   }
 

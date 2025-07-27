@@ -73,7 +73,17 @@ export type Permission =
   | 'edit-organization'
   | 'delete-organization'
   | 'view-settings'
-  | 'view-appearance';
+  | 'view-appearance'
+  | 'view-courses'
+  | 'create-course'
+  | 'edit-course'
+  | 'delete-course'
+  | 'view-course-materials'
+  | 'view-causes'
+  | 'create-cause'
+  | 'edit-cause'
+  | 'delete-cause'
+  | 'view-cause-materials';
 
 const rolePermissions: Record<UserRole, Permission[]> = {
   Student: [
@@ -86,7 +96,11 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'view-results',
     'view-profile',
     'edit-profile',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'view-course-materials',
+    'view-causes',
+    'view-cause-materials'
   ],
   Parent: [
     'view-dashboard',
@@ -99,7 +113,11 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'view-results',
     'view-profile',
     'edit-profile',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'view-course-materials',
+    'view-causes',
+    'view-cause-materials'
   ],
   Teacher: [
     'view-dashboard',
@@ -141,7 +159,17 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'delete-result',
     'view-profile',
     'edit-profile',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'create-course',
+    'edit-course',
+    'delete-course',
+    'view-course-materials',
+    'view-causes',
+    'create-cause',
+    'edit-cause',
+    'delete-cause',
+    'view-cause-materials'
   ],
   AttendanceMarker: [
     'view-dashboard',
@@ -218,7 +246,17 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'edit-profile',
     'view-institute-details',
     'edit-institute-details',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'create-course',
+    'edit-course',
+    'delete-course',
+    'view-course-materials',
+    'view-causes',
+    'create-cause',
+    'edit-cause',
+    'delete-cause',
+    'view-cause-materials'
   ],
   Admin: [
     'view-dashboard',
@@ -284,7 +322,17 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'edit-profile',
     'view-institute-details',
     'edit-institute-details',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'create-course',
+    'edit-course',
+    'delete-course',
+    'view-course-materials',
+    'view-causes',
+    'create-cause',
+    'edit-cause',
+    'delete-cause',
+    'view-cause-materials'
   ],
   SuperAdmin: [
     'view-dashboard',
@@ -353,7 +401,17 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'edit-profile',
     'view-institute-details',
     'edit-institute-details',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'create-course',
+    'edit-course',
+    'delete-course',
+    'view-course-materials',
+    'view-causes',
+    'create-cause',
+    'edit-cause',
+    'delete-cause',
+    'view-cause-materials'
   ],
   SystemAdmin: [
     'view-dashboard',
@@ -418,7 +476,17 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'edit-profile',
     'view-institute-details',
     'edit-institute-details',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'create-course',
+    'edit-course',
+    'delete-course',
+    'view-course-materials',
+    'view-causes',
+    'create-cause',
+    'edit-cause',
+    'delete-cause',
+    'view-cause-materials'
   ],
   OrganizationManager: [
     'view-dashboard',
@@ -491,7 +559,17 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'view-profile',
     'edit-profile',
     'view-settings',
-    'view-appearance'
+    'view-appearance',
+    'view-courses',
+    'create-course',
+    'edit-course',
+    'delete-course',
+    'view-course-materials',
+    'view-causes',
+    'create-cause',
+    'edit-cause',
+    'delete-cause',
+    'view-cause-materials'
   ]
 };
 
@@ -537,7 +615,9 @@ export class AccessControl {
       '/institute-details': 'view-institute-details',
       '/organizations': 'view-organizations',
       '/settings': 'view-settings',
-      '/appearance': 'view-appearance'
+      '/appearance': 'view-appearance',
+      '/courses': 'view-courses',
+      '/causes': 'view-causes'
     };
 
     const requiredPermission = routePermissionMap[route];
