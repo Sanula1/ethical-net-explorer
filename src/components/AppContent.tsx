@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -405,7 +404,7 @@ const AppContent = () => {
   };
 
   if (!user) {
-    return <Login onLogin={login} />;
+    return <Login loginFunction={login} />;
   }
 
   // If in organization mode, render without main layout
