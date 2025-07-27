@@ -33,10 +33,7 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
 
     setIsLoading(true);
     try {
-      // Get the base URL from localStorage or context
-      const baseUrl = localStorage.getItem('baseUrl') || 'https://api.example.com';
-      
-      const response = await fetch(`${baseUrl}/organization/api/v1/auth/login`, {
+      const response = await fetch('http://localhost:3001/organization/api/v1/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
