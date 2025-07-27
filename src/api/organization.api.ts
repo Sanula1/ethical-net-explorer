@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 import { getBaseUrl2 } from '@/contexts/utils/auth.api';
 
@@ -69,117 +68,6 @@ export interface OrganizationLoginResponse {
   };
 }
 
-// New interfaces for Causes
-export interface Cause {
-  causeId: string;
-  title: string;
-  description: string;
-  isPublic: boolean;
-  organizationId: string;
-}
-
-export interface CauseCreateData {
-  organizationId: string;
-  title: string;
-  description: string;
-  isPublic: boolean;
-}
-
-export interface CauseResponse {
-  data: Cause[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-  meta: {
-    sortBy: string;
-    sortOrder: string;
-  };
-}
-
-// New interfaces for Lectures
-export interface OrganizationLecture {
-  lectureId: string;
-  causeId: string;
-  title: string;
-  description: string | null;
-  content: string;
-  venue: string | null;
-  mode: 'online' | 'physical' | null;
-  timeStart: any;
-  timeEnd: any;
-  liveLink: string | null;
-  liveMode: string | null;
-  recordingUrl: string | null;
-  isPublic: boolean;
-  createdAt: any;
-  updatedAt: any;
-  cause: {
-    causeId: string;
-    title: string;
-    organizationId: string;
-    organization: {
-      organizationId: string;
-      name: string;
-    };
-  };
-}
-
-export interface LectureCreateData {
-  causeId: string;
-  title: string;
-  content: string;
-  isPublic: boolean;
-  description?: string;
-  venue?: string;
-  mode?: 'online' | 'physical';
-  timeStart?: any;
-  timeEnd?: any;
-  liveLink?: string;
-  liveMode?: string;
-  recordingUrl?: string;
-}
-
-// Institute assignment interfaces
-export interface InstituteAssignmentData {
-  instituteId: string;
-}
-
-export interface InstituteAssignmentResponse {
-  message: string;
-  organization: {
-    organizationId: string;
-    name: string;
-    type: string;
-    isPublic: boolean;
-    instituteId: string | null;
-    createdAt: any;
-    updatedAt: any;
-    institute?: {
-      instituteId: string;
-      name: string;
-      imageUrl: string;
-    };
-    organizationUsers: Array<{
-      organizationId: string;
-      userId: string;
-      role: string;
-      isVerified: boolean;
-      createdAt: any;
-      updatedAt: any;
-      user: {
-        userId: string;
-        email: string;
-        name: string;
-      };
-    }>;
-  };
-}
-
 class OrganizationApiClient {
   private baseUrl = '/organization/api/v1';
 
@@ -193,12 +81,16 @@ class OrganizationApiClient {
 
   async loginToOrganization(credentials: OrganizationLoginCredentials): Promise<OrganizationLoginResponse> {
     try {
+      // Check if baseUrl2 is configured
       this.checkBaseUrl2();
+      
+      // Switch to baseUrl2 for organization API calls
       apiClient.setUseBaseUrl2(true);
       
       const response = await apiClient.post<OrganizationLoginResponse>(`${this.baseUrl}/auth/login`, credentials);
       return response;
     } finally {
+      // Always switch back to baseUrl1 after organization calls
       apiClient.setUseBaseUrl2(false);
     }
   }
@@ -273,81 +165,6 @@ class OrganizationApiClient {
       apiClient.setUseBaseUrl2(false);
     }
   }
-
-  // Causes API methods
-  async getCauses(params?: { page?: number; limit?: number }): Promise<CauseResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.get<CauseResponse>(`${this.baseUrl}/causes`, params);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async createCause(data: CauseCreateData): Promise<Cause> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.post<Cause>(`${this.baseUrl}/causes`, data);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  // Lectures API methods
-  async getLectures(): Promise<OrganizationLecture[]> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.get<OrganizationLecture[]>(`${this.baseUrl}/lectures`);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async createLecture(data: LectureCreateData): Promise<OrganizationLecture> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.post<OrganizationLecture>(`${this.baseUrl}/lectures`, data);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  // Institute assignment methods
-  async assignOrganizationToInstitute(organizationId: string, data: InstituteAssignmentData): Promise<InstituteAssignmentResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.post<InstituteAssignmentResponse>(`${this.baseUrl}/organizations/${organizationId}/assign-institute`, data);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async removeOrganizationFromInstitute(organizationId: string): Promise<InstituteAssignmentResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.delete<InstituteAssignmentResponse>(`${this.baseUrl}/organizations/${organizationId}/remove-institute`);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
 }
 
 // Organization-specific API client that uses baseUrl2
@@ -417,18 +234,6 @@ class OrganizationSpecificApiClient {
       method: 'POST',
       headers: this.getHeaders(),
       body: data ? JSON.stringify(data) : undefined
-    });
-
-    return this.handleResponse<T>(response);
-  }
-
-  async delete<T = any>(endpoint: string): Promise<T> {
-    const baseUrl = this.getBaseUrl2();
-    const url = `${baseUrl}${endpoint}`;
-    
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: this.getHeaders()
     });
 
     return this.handleResponse<T>(response);
