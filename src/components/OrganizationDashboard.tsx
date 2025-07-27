@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,7 +59,7 @@ interface OrganizationDashboardProps {
 }
 
 const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange }: OrganizationDashboardProps) => {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<OrganizationCourse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateCourseForm, setShowCreateCourseForm] = useState(false);
   const { toast } = useToast();
@@ -93,7 +94,23 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
         organizationId: organization.organizationId
       });
       
-      setCourses(prev => [response, ...prev]);
+      // Convert Course to OrganizationCourse format for display
+      const newOrganizationCourse: OrganizationCourse = {
+        ...response,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        organization: {
+          organizationId: organization.organizationId,
+          name: organization.name,
+          type: organization.type || 'ORGANIZATION'
+        },
+        _count: {
+          lectures: 0,
+          assignments: 0
+        }
+      };
+      
+      setCourses(prev => [newOrganizationCourse, ...prev]);
       setShowCreateCourseForm(false);
       
       toast({
@@ -236,12 +253,10 @@ const OrganizationDashboard = ({ organization, onBack, currentPage, onPageChange
                       </div>
                     </CardHeader>
                     <CardContent>
-                      {course._count && (
-                        <div className="flex gap-4 text-sm text-gray-600 mb-3">
-                          <span>Lectures: {course._count.lectures}</span>
-                          <span>Assignments: {course._count.assignments}</span>
-                        </div>
-                      )}
+                      <div className="flex gap-4 text-sm text-gray-600 mb-3">
+                        <span>Lectures: {course._count.lectures}</span>
+                        <span>Assignments: {course._count.assignments}</span>
+                      </div>
                       <Button size="sm" variant="outline" className="w-full">
                         Select Course
                       </Button>
