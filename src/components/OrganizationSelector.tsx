@@ -46,7 +46,7 @@ const OrganizationSelector = ({
   const loadOrganizations = async () => {
     try {
       setIsLoading(true);
-      const response = await organizationApi.getUserEnrolledOrganizations({
+      const response = await organizationApi.getOrganizations({
         page: 1,
         limit: 50
       });
@@ -188,7 +188,7 @@ const OrganizationSelector = ({
                     <div>
                       <CardTitle className="text-lg">{organization.name}</CardTitle>
                       <CardDescription className="text-sm">
-                        Joined: {new Date(organization.joinedAt!).toLocaleDateString()}
+                        {organization.joinedAt && `Joined: ${new Date(organization.joinedAt).toLocaleDateString()}`}
                       </CardDescription>
                     </div>
                   </div>
@@ -205,19 +205,21 @@ const OrganizationSelector = ({
                     <Badge className={getTypeColor(organization.type)}>
                       {organization.type}
                     </Badge>
-                    <Badge className={getRoleColor(organization.userRole!)}>
-                      {organization.userRole}
-                    </Badge>
+                    {organization.userRole && (
+                      <Badge className={getRoleColor(organization.userRole)}>
+                        {organization.userRole}
+                      </Badge>
+                    )}
                   </div>
                   
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center space-x-1">
                       <Users className="h-4 w-4" />
-                      <span>{organization.memberCount} members</span>
+                      <span>{organization.memberCount || 0} members</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <Award className="h-4 w-4" />
-                      <span>{organization.causeCount} causes</span>
+                      <span>{organization.causeCount || 0} causes</span>
                     </div>
                   </div>
                   

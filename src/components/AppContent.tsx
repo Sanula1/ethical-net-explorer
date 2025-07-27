@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -101,27 +100,40 @@ const AppContent = () => {
   };
 
   const renderComponent = () => {
-    // Handle organization-related pages
-    if (currentPage === 'organizations') {
-      if (showCreateOrgForm) {
-        return (
-          <CreateOrganizationForm
-            onSuccess={handleCreateOrganizationSuccess}
-            onCancel={handleCreateOrganizationCancel}
-          />
-        );
+    // For Organization Manager - handle organization flow
+    if (user?.role === 'OrganizationManager') {
+      if (currentPage === 'organizations') {
+        if (showCreateOrgForm) {
+          return (
+            <CreateOrganizationForm
+              onSuccess={handleCreateOrganizationSuccess}
+              onCancel={handleCreateOrganizationCancel}
+            />
+          );
+        }
+        
+        if (!organizationLoginData) {
+          return (
+            <OrganizationLogin
+              onLogin={handleOrganizationLogin}
+              onBack={handleBackToMain}
+            />
+          );
+        }
+        
+        if (!selectedOrganization) {
+          return (
+            <OrganizationSelector
+              onOrganizationSelect={handleOrganizationSelect}
+              onBack={handleBackToMain}
+              onCreateOrganization={handleCreateOrganization}
+              userPermissions={organizationLoginData?.permissions}
+            />
+          );
+        }
       }
-      
-      if (!organizationLoginData) {
-        return (
-          <OrganizationLogin
-            onLogin={handleOrganizationLogin}
-            onBack={handleBackToMain}
-          />
-        );
-      }
-      
-      if (!selectedOrganization) {
+
+      if (currentPage === 'organization-selector') {
         return (
           <OrganizationSelector
             onOrganizationSelect={handleOrganizationSelect}
@@ -131,17 +143,18 @@ const AppContent = () => {
           />
         );
       }
-    }
 
-    if (currentPage === 'organization-selector') {
-      return (
-        <OrganizationSelector
-          onOrganizationSelect={handleOrganizationSelect}
-          onBack={handleBackToMain}
-          onCreateOrganization={handleCreateOrganization}
-          userPermissions={organizationLoginData?.permissions}
-        />
-      );
+      // For OrganizationManager, handle basic pages
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'profile':
+          return <Profile />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
     }
 
     // System Admin doesn't need institute/class/subject selection flow
@@ -195,54 +208,6 @@ const AppContent = () => {
           return <InstituteDetails />;
         case 'appearance':
           return <Appearance />;
-        default:
-          return <Dashboard />;
-      }
-    }
-
-    // For Organization Manager - show organizations list or organization-specific dashboard
-    if (user?.role === 'OrganizationManager') {
-      if (!selectedOrganization && currentPage !== 'organizations') {
-        return <Organizations />;
-      }
-
-      // Add Organization Header for specific sections
-      const shouldShowOrgHeader = ['dashboard', 'students', 'lectures', 'gallery'].includes(currentPage);
-      
-      const getPageTitle = () => {
-        switch (currentPage) {
-          case 'dashboard': return 'Dashboard';
-          case 'students': return 'Students';
-          case 'lectures': return 'Lectures';
-          case 'gallery': return 'Gallery';
-          default: return 'Management';
-        }
-      };
-
-      const renderWithHeader = (component: React.ReactNode) => (
-        <>
-          {shouldShowOrgHeader && <OrganizationHeader title={getPageTitle()} />}
-          {component}
-        </>
-      );
-
-      switch (currentPage) {
-        case 'organizations':
-          return <Organizations />;
-        case 'dashboard':
-          return renderWithHeader(<Dashboard />);
-        case 'students':
-          return renderWithHeader(<Students />);
-        case 'lectures':
-          return renderWithHeader(<Lectures />);
-        case 'gallery':
-          return renderWithHeader(<Gallery />);
-        case 'appearance':
-          return <Appearance />;
-        case 'profile':
-          return <Profile />;
-        case 'settings':
-          return <Settings />;
         default:
           return <Dashboard />;
       }

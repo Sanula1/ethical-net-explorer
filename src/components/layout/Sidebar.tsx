@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,9 +39,22 @@ interface SidebarProps {
 const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) => {
   const { user, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, logout, setSelectedInstitute, setSelectedClass, setSelectedSubject, setSelectedChild, setSelectedOrganization } = useAuth();
 
-  // Get menu items based on current selection state
+  // Get menu items based on current selection state and user role
   const getMenuItems = () => {
-    // Base items that are always available for all users
+    // For OrganizationManager role, show limited menu items
+    if (user?.role === 'OrganizationManager') {
+      return [
+        {
+          id: 'organizations',
+          label: 'Organizations',
+          icon: Building2,
+          permission: 'view-organizations',
+          alwaysShow: true
+        }
+      ];
+    }
+
+    // Base items that are always available for all other users
     const baseItems = [
       {
         id: 'dashboard',
@@ -205,39 +219,63 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     }
   ];
 
-  const settingsItems = [
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: User,
-      permission: 'view-profile',
-      alwaysShow: false
-    },
-    {
-      id: 'appearance',
-      label: 'Appearance',
-      icon: Palette,
-      permission: 'view-appearance',
-      alwaysShow: false
-    },
-    ...(selectedInstitute ? [{
-      id: 'institute-details',
-      label: 'Institute Details',
-      icon: Building2,
-      permission: 'view-institute-details',
-      alwaysShow: false
-    }] : []),
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      permission: 'view-settings',
-      alwaysShow: false
+  const getSettingsItems = () => {
+    // For OrganizationManager role, show only Profile and Appearance
+    if (user?.role === 'OrganizationManager') {
+      return [
+        {
+          id: 'profile',
+          label: 'Profile',
+          icon: User,
+          permission: 'view-profile',
+          alwaysShow: true
+        },
+        {
+          id: 'appearance',
+          label: 'Appearance',
+          icon: Palette,
+          permission: 'view-appearance',
+          alwaysShow: true
+        }
+      ];
     }
-  ];
+
+    // For all other users, show all settings items
+    return [
+      {
+        id: 'profile',
+        label: 'Profile',
+        icon: User,
+        permission: 'view-profile',
+        alwaysShow: false
+      },
+      {
+        id: 'appearance',
+        label: 'Appearance',
+        icon: Palette,
+        permission: 'view-appearance',
+        alwaysShow: false
+      },
+      ...(selectedInstitute ? [{
+        id: 'institute-details',
+        label: 'Institute Details',
+        icon: Building2,
+        permission: 'view-institute-details',
+        alwaysShow: false
+      }] : []),
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: Settings,
+        permission: 'view-settings',
+        alwaysShow: false
+      }
+    ];
+  };
 
   const userRole = user?.role || 'Student';
   const menuItems = getMenuItems();
+  const settingsItems = getSettingsItems();
 
   const filterItemsByPermission = (items: any[]) => {
     return items.filter(item => {
@@ -351,8 +389,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
           </div>
         </div>
 
-        {/* Context Info - Only show for non-SystemAdmin users */}
-        {user?.role !== 'SystemAdmin' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
+        {/* Context Info - Only show for non-SystemAdmin users and non-OrganizationManager */}
+        {user?.role !== 'SystemAdmin' && user?.role !== 'OrganizationManager' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
@@ -409,8 +447,8 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance and academic sections if institute is selected */}
-            {selectedInstitute && (
+            {/* Only show attendance and academic sections if institute is selected and not OrganizationManager */}
+            {selectedInstitute && user?.role !== 'OrganizationManager' && (
               <>
                 <SidebarSection title="Attendance" items={attendanceItems} />
                 <SidebarSection title="Academic" items={systemItems} />
