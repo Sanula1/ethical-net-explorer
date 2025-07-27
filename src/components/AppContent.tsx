@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from './layout/Header';
@@ -30,17 +31,22 @@ import Profile from './Profile';
 import NotFound from '@/pages/NotFound';
 
 const AppContent = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const handleMenuClick = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
 
   if (!user) {
-    return <Login />;
+    return <Login onLogin={login} loginFunction={login} />;
   }
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-        <Header />
+        <Header onMenuClick={handleMenuClick} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto">
           <Routes>
             <Route path="/" element={<Dashboard />} />
