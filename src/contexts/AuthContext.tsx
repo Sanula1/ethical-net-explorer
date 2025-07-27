@@ -217,7 +217,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const setSelectedOrganization = (organization: Organization | null) => {
     setSelectedOrganizationState(organization);
-    setCurrentOrganizationId(organization?.id || null);
+    setCurrentOrganizationId(organization?.organizationId || null);
   };
 
   // Enhanced method to refresh all data

@@ -36,8 +36,9 @@ import OrganizationHeader from '@/components/OrganizationHeader';
 import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
 import OrganizationLoginPopup from '@/components/OrganizationLoginPopup';
+import OrganizationPortal from '@/components/OrganizationPortal';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
-import { Organization } from '@/api/organization.api';
+import { Organization } from '@/contexts/types/auth.types';
 
 const AppContent = () => {
   const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization: authSelectedOrganization, setSelectedOrganization } = useAuth();
