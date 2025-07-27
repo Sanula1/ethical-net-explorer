@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/layout/Sidebar';
@@ -38,13 +37,16 @@ import OrganizationLogin from '@/components/OrganizationLogin';
 import OrganizationSelector from '@/components/OrganizationSelector';
 import OrganizationLoginPopup from '@/components/OrganizationLoginPopup';
 import CreateOrganizationForm from '@/components/forms/CreateOrganizationForm';
+import { Organization } from '@/api/organization.api';
 
 const AppContent = () => {
-  const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, setSelectedOrganization } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization: authSelectedOrganization, setSelectedOrganization } = useAuth();
+  const [currentPage, setCurrentPage] = useState('organizations');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showOrganizationLoginPopup, setShowOrganizationLoginPopup] = useState(false);
   const [organizationLoginData, setOrganizationLoginData] = useState<any>(null);
+  const [selectedOrganization, setSelectedOrganizationState] = useState<Organization | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   const handleMenuClick = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -61,15 +63,38 @@ const AppContent = () => {
     setCurrentPage('select-organization');
   };
 
-  const handleOrganizationSelect = (organization: any) => {
+  const handleOrganizationSelect = (organization: Organization) => {
     console.log('Organization selected:', organization);
+    setSelectedOrganizationState(organization);
     setSelectedOrganization(organization);
-    setCurrentPage('dashboard');
+    setCurrentPage('organization-portal');
+  };
+
+  const handleBackToOrganizations = () => {
+    setSelectedOrganizationState(null);
+    setSelectedOrganization(null);
+    setCurrentPage('select-organization');
   };
 
   const handleBackToMain = () => {
     setOrganizationLoginData(null);
-    setCurrentPage('dashboard');
+    setSelectedOrganizationState(null);
+    setSelectedOrganization(null);
+    setCurrentPage('organizations');
+  };
+
+  const handleCreateOrganization = () => {
+    setShowCreateForm(true);
+  };
+
+  const handleCreateSuccess = (organization: Organization) => {
+    setShowCreateForm(false);
+    // Optionally refresh the organization list or select the newly created organization
+    setCurrentPage('select-organization');
+  };
+
+  const handleCreateCancel = () => {
+    setShowCreateForm(false);
   };
 
   const renderComponent = () => {
@@ -77,12 +102,53 @@ const AppContent = () => {
     if (user?.role === 'OrganizationManager') {
       if (currentPage === 'organizations') {
         setShowOrganizationLoginPopup(true);
-        setCurrentPage('dashboard');
-        return <Dashboard />;
+        setCurrentPage('organizations');
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Organizations</h1>
+                <p className="text-muted-foreground">Access your organization portal</p>
+              </div>
+            </div>
+            <div className="text-center py-12">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Please log in to access organizations
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Click on Organizations in the sidebar to log in to your organization portal.
+              </p>
+            </div>
+          </div>
+        );
       }
       
       if (currentPage === 'select-organization') {
-        return <OrganizationSelector onBack={handleBackToMain} />;
+        return (
+          <OrganizationSelector
+            onBack={handleBackToMain}
+            onOrganizationSelect={handleOrganizationSelect}
+            onCreateOrganization={handleCreateOrganization}
+          />
+        );
+      }
+
+      if (currentPage === 'organization-portal' && selectedOrganization) {
+        return (
+          <OrganizationPortal
+            selectedOrganization={selectedOrganization}
+            onBack={handleBackToOrganizations}
+          />
+        );
+      }
+
+      if (showCreateForm) {
+        return (
+          <CreateOrganizationForm
+            onSuccess={handleCreateSuccess}
+            onCancel={handleCreateCancel}
+          />
+        );
       }
       
       // Default pages for OrganizationManager
@@ -92,7 +158,24 @@ const AppContent = () => {
         case 'appearance':
           return <Appearance />;
         default:
-          return <Dashboard />;
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">Organizations</h1>
+                  <p className="text-muted-foreground">Access your organization portal</p>
+                </div>
+              </div>
+              <div className="text-center py-12">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Please log in to access organizations
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Click on Organizations in the sidebar to log in to your organization portal.
+                </p>
+              </div>
+            </div>
+          );
       }
     }
 
@@ -406,6 +489,16 @@ const AppContent = () => {
 
   if (!user) {
     return <Login onLogin={login} loginFunction={login} />;
+  }
+
+  // Show organization portal if an organization is selected
+  if (selectedOrganization && currentPage === 'organization-portal') {
+    return (
+      <OrganizationPortal
+        selectedOrganization={selectedOrganization}
+        onBack={handleBackToOrganizations}
+      />
+    );
   }
 
   return (

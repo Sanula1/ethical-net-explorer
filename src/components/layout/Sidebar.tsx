@@ -1,476 +1,327 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { X, ArrowLeft, Building2, Images, Users, BookOpen, User, Palette, LayoutDashboard, GraduationCap, CalendarDays, FileVideo, FileText, ClipboardList, BarChart, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { AccessControl } from '@/utils/permissions';
-import {
-  LayoutDashboard,
-  Users,
-  GraduationCap,
-  UserCheck,
-  BookOpen,
-  School,
-  ClipboardList,
-  BarChart3,
-  Settings,
-  User,
-  Building2,
-  QrCode,
-  X,
-  Award,
-  Video,
-  LogOut,
-  Menu,
-  FileText,
-  ArrowLeft,
-  Notebook,
-  Images,
-  Palette
-} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Organization } from '@/api/organization.api';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   currentPage: string;
   onPageChange: (page: string) => void;
+  isOrganizationPortal?: boolean;
+  selectedOrganization?: Organization;
+  onBackToOrganizations?: () => void;
 }
 
-const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) => {
-  const { user, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, logout, setSelectedInstitute, setSelectedClass, setSelectedSubject, setSelectedChild, setSelectedOrganization } = useAuth();
+const Sidebar = ({ 
+  isOpen, 
+  onClose, 
+  currentPage, 
+  onPageChange, 
+  isOrganizationPortal = false,
+  selectedOrganization,
+  onBackToOrganizations
+}: SidebarProps) => {
+  const { user, selectedInstitute, selectedClass, selectedSubject, selectedChild } = useAuth();
 
-  // Get menu items based on current selection state and user role
-  const getMenuItems = () => {
-    // For OrganizationManager, show only specific sections
-    if (user?.role === 'OrganizationManager') {
-      // If logged into organization portal, show organization-specific navigation
-      if (selectedOrganization) {
-        return [
-          {
-            id: 'select-organization',
-            label: 'Select Organization',
-            icon: Building2,
-            permission: 'view-organizations',
-            alwaysShow: true
-          }
-        ];
-      }
-      
-      // Before organization login, show main navigation
-      return [
-        {
-          id: 'organizations',
-          label: 'Organizations',
-          icon: Building2,
-          permission: 'view-organizations',
-          alwaysShow: true
-        }
-      ];
-    }
-
-    // Base items that are always available for all other users
-    const baseItems = [
-      {
-        id: 'dashboard',
-        label: selectedInstitute ? 'Dashboard' : 'Select Institutes',
-        icon: LayoutDashboard,
-        permission: 'view-dashboard',
-        alwaysShow: false
-      },
-      {
-        id: 'organizations',
-        label: 'Organizations',
-        icon: Building2,
-        permission: 'view-organizations',
-        alwaysShow: true // Always show organizations for all users
-      }
-    ];
-
-    // If no institute is selected, return basic navigation including organizations
-    if (!selectedInstitute) {
-      return baseItems;
-    }
-
-    // If institute is selected, show full navigation
-    return [
-      ...baseItems,
-      {
-        id: 'users',
-        label: 'Users',
-        icon: Users,
-        permission: 'view-users',
-        alwaysShow: false
-      },
-      {
-        id: 'students',
-        label: 'Students',
-        icon: GraduationCap,
-        permission: 'view-students',
-        alwaysShow: false
-      },
-      {
-        id: 'parents',
-        label: 'Parents',
-        icon: Users,
-        permission: 'view-parents',
-        alwaysShow: false
-      },
-      // Remove teachers section for SystemAdmin
-      ...(user?.role !== 'SystemAdmin' ? [{
-        id: 'teachers',
-        label: 'Teachers',
-        icon: UserCheck,
-        permission: 'view-teachers',
-        alwaysShow: false
-      }] : []),
-      {
-        id: 'classes',
-        label: 'All Classes',
-        icon: School,
-        permission: 'view-classes',
-        alwaysShow: false
-      },
-      {
-        id: 'subjects',
-        label: 'All Subjects',
-        icon: BookOpen,
-        permission: 'view-subjects',
-        alwaysShow: false
-      },
-      // Only show selection options for non-SystemAdmin users
-      ...(user?.role !== 'SystemAdmin' ? [
-        {
-          id: 'select-class',
-          label: 'Select Class',
-          icon: School,
-          permission: 'view-classes',
-          alwaysShow: false
-        },
-        {
-          id: 'select-subject',
-          label: 'Select Subject',
-          icon: BookOpen,
-          permission: 'view-subjects',
-          alwaysShow: false
-        }
-      ] : []),
-      {
-        id: 'institutes',
-        label: 'Institutes',
-        icon: Building2,
-        permission: 'view-institutes',
-        alwaysShow: false
-      }
-    ];
-  };
-
-  const attendanceItems = [
-    {
-      id: 'attendance',
-      label: 'View Attendance',
-      icon: ClipboardList,
-      permission: 'view-attendance',
-      alwaysShow: false
-    },
-    {
-      id: 'attendance-marking',
-      label: 'Mark Attendance',
-      icon: UserCheck,
-      permission: 'mark-attendance',
-      alwaysShow: false
-    },
-    {
-      id: 'attendance-markers',
-      label: 'Attendance Markers',
-      icon: Users,
-      permission: 'manage-attendance-markers',
-      alwaysShow: false
-    },
-    {
-      id: 'qr-attendance',
-      label: 'QR Attendance',
-      icon: QrCode,
-      permission: 'mark-attendance',
-      alwaysShow: false
-    }
+  // Organization portal navigation items
+  const organizationPortalItems = [
+    { key: 'gallery', label: 'Gallery', icon: Images },
+    { key: 'students', label: 'Students', icon: Users },
+    { key: 'courses', label: 'Courses', icon: BookOpen },
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
   ];
 
-  const systemItems = [
-    {
-      id: 'grading',
-      label: 'Grading',
-      icon: BarChart3,
-      permission: 'view-grading',
-      alwaysShow: false
-    },
-    {
-      id: 'live-lectures',
-      label: 'Live Lectures',
-      icon: Video,
-      permission: 'view-lectures',
-      alwaysShow: false
-    },
-    {
-      id: 'homework',
-      label: 'Homework',
-      icon: Notebook,
-      permission: 'view-homework',
-      alwaysShow: false
-    },
-    {
-      id: 'exams',
-      label: 'Exams',
-      icon: FileText,
-      permission: 'view-exams',
-      alwaysShow: false
-    },
-    {
-      id: 'results',
-      label: 'Results',
-      icon: ClipboardList,
-      permission: 'view-results',
-      alwaysShow: false
-    }
+  const mainNavItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'users', label: 'Users', icon: User },
+    { key: 'students', label: 'Students', icon: GraduationCap },
+    { key: 'teachers', label: 'Teachers', icon: User },
+    { key: 'parents', label: 'Parents', icon: User },
+    { key: 'grades', label: 'Grades', icon: BarChart },
+    { key: 'classes', label: 'Classes', icon: GraduationCap },
+    { key: 'subjects', label: 'Subjects', icon: BookOpen },
+    { key: 'institutes', label: 'Institutes', icon: Building2 },
+    { key: 'grading', label: 'Grading', icon: BarChart },
+    { key: 'attendance', label: 'Attendance', icon: CalendarDays },
+    { key: 'attendance-marking', label: 'Attendance Marking', icon: CalendarDays },
+    { key: 'attendance-markers', label: 'Attendance Markers', icon: CalendarDays },
+    { key: 'qr-attendance', label: 'QR Attendance', icon: CalendarDays },
+    { key: 'lectures', label: 'Lectures', icon: FileVideo },
+    { key: 'live-lectures', label: 'Live Lectures', icon: FileVideo },
+    { key: 'homework', label: 'Homework', icon: FileText },
+    { key: 'exams', label: 'Exams', icon: ClipboardList },
+    { key: 'results', label: 'Results', icon: BarChart },
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'institute-details', label: 'Institute Details', icon: Building2 },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'organizations', label: 'Organizations', icon: Building2 },
   ];
 
-  const settingsItems = [
-    {
-      id: 'profile',
-      label: 'Profile',
-      icon: User,
-      permission: 'view-profile',
-      alwaysShow: true // Always show profile for all users
-    },
-    {
-      id: 'appearance',
-      label: 'Appearance',
-      icon: Palette,
-      permission: 'view-appearance',
-      alwaysShow: true // Always show appearance for all users
-    },
-    // Only show institute details for non-OrganizationManager users
-    ...(user?.role !== 'OrganizationManager' && selectedInstitute ? [{
-      id: 'institute-details',
-      label: 'Institute Details',
-      icon: Building2,
-      permission: 'view-institute-details',
-      alwaysShow: false
-    }] : []),
-    {
-      id: 'settings',
-      label: 'Settings',
-      icon: Settings,
-      permission: 'view-settings',
-      alwaysShow: false
-    }
+  const studentNavItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'attendance', label: 'Attendance', icon: CalendarDays },
+    { key: 'lectures', label: 'Lectures', icon: FileVideo },
+    { key: 'homework', label: 'Homework', icon: FileText },
+    { key: 'exams', label: 'Exams', icon: ClipboardList },
+    { key: 'results', label: 'Results', icon: BarChart },
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'organizations', label: 'Organizations', icon: Building2 },
   ];
 
-  const userRole = user?.role || 'Student';
-  const menuItems = getMenuItems();
+  const parentNavItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'attendance', label: 'Attendance', icon: CalendarDays },
+    { key: 'homework', label: 'Homework', icon: FileText },
+    { key: 'results', label: 'Results', icon: BarChart },
+    { key: 'exams', label: 'Exams', icon: ClipboardList },
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'organizations', label: 'Organizations', icon: Building2 },
+  ];
 
-  const filterItemsByPermission = (items: any[]) => {
-    return items.filter(item => {
-      // Always show items marked as alwaysShow
-      if (item.alwaysShow) {
-        return true;
-      }
-      // Otherwise check permission
-      return AccessControl.hasPermission(userRole as any, item.permission);
-    });
-  };
+  const teacherNavItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'students', label: 'Students', icon: GraduationCap },
+    { key: 'parents', label: 'Parents', icon: User },
+    { key: 'classes', label: 'Classes', icon: GraduationCap },
+    { key: 'subjects', label: 'Subjects', icon: BookOpen },
+    { key: 'grading', label: 'Grading', icon: BarChart },
+    { key: 'attendance', label: 'Attendance', icon: CalendarDays },
+    { key: 'attendance-marking', label: 'Attendance Marking', icon: CalendarDays },
+    { key: 'lectures', label: 'Lectures', icon: FileVideo },
+    { key: 'homework', label: 'Homework', icon: FileText },
+    { key: 'exams', label: 'Exams', icon: ClipboardList },
+    { key: 'results', label: 'Results', icon: BarChart },
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'organizations', label: 'Organizations', icon: Building2 },
+  ];
 
-  const handleItemClick = (itemId: string) => {
-    console.log('Sidebar item clicked:', itemId);
-    onPageChange(itemId);
-    onClose();
-  };
+  const attendanceMarkerNavItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'attendance-marking', label: 'Attendance Marking', icon: CalendarDays },
+    { key: 'qr-attendance', label: 'QR Attendance', icon: CalendarDays },
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
+    { key: 'organizations', label: 'Organizations', icon: Building2 },
+  ];
 
-  const handleLogout = () => {
-    logout();
-    onClose();
-  };
+  const instituteAdminNavItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'users', label: 'Users', icon: User },
+    { key: 'students', label: 'Students', icon: GraduationCap },
+    { key: 'teachers', label: 'Teachers', icon: User },
+    { key: 'parents', label: 'Parents', icon: User },
+    { key: 'grades', label: 'Grades', icon: BarChart },
+    { key: 'classes', label: 'Classes', icon: GraduationCap },
+    { key: 'subjects', label: 'Subjects', icon: BookOpen },
+    { key: 'institutes', label: 'Institutes', icon: Building2 },
+    { key: 'grading', label: 'Grading', icon: BarChart },
+    { key: 'attendance', label: 'Attendance', icon: CalendarDays },
+    { key: 'attendance-marking', label: 'Attendance Marking', icon: CalendarDays },
+    { key: 'attendance-markers', label: 'Attendance Markers', icon: CalendarDays },
+    { key: 'qr-attendance', label: 'QR Attendance', icon: CalendarDays },
+    { key: 'lectures', label: 'Lectures', icon: FileVideo },
+    { key: 'live-lectures', label: 'Live Lectures', icon: FileVideo },
+    { key: 'homework', label: 'Homework', icon: FileText },
+    { key: 'exams', label: 'Exams', icon: ClipboardList },
+    { key: 'results', label: 'Results', icon: BarChart },
+    { key: 'profile', label: 'Profile', icon: User },
+    { key: 'institute-details', label: 'Institute Details', icon: Building2 },
+    { key: 'appearance', label: 'Appearance', icon: Palette },
+        { key: 'organizations', label: 'Organizations', icon: Building2 },
+  ];
 
-  const handleBackNavigation = () => {
-    if (selectedOrganization) {
-      // Go back from organization level to organization selection
-      setSelectedOrganization(null);
-    } else if (selectedChild) {
-      // Go back from child level to children selection
-      setSelectedChild(null);
-    } else if (selectedSubject) {
-      // Go back from subject level to class level
-      setSelectedSubject(null);
-    } else if (selectedClass) {
-      // Go back from class level to institute level
-      setSelectedClass(null);
-    } else if (selectedInstitute) {
-      // Go back from institute level to institute selection
-      setSelectedInstitute(null);
-    }
-  };
-
-  const SidebarSection = ({ title, items }: { title: string; items: any[] }) => {
-    const filteredItems = filterItemsByPermission(items);
-    
-    if (filteredItems.length === 0) return null;
-
+  if (isOrganizationPortal) {
     return (
-      <div className="mb-4 sm:mb-6">
-        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-3">
-          {title}
-        </h3>
-        <div className="space-y-1">
-          {filteredItems.map((item) => (
-            <Button
-              key={item.id}
-              variant={currentPage === item.id ? "secondary" : "ghost"}
-              className={`w-full justify-start h-9 sm:h-10 px-3 text-sm ${
-                currentPage === item.id 
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 border-r-2 border-blue-600' 
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              onClick={() => handleItemClick(item.id)}
-            >
-              <item.icon className="mr-3 h-4 w-4 flex-shrink-0" />
-              {item.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <>
-      {/* Mobile Overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" 
-          onClick={onClose}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div className={`
-        fixed md:static inset-y-0 left-0 z-50
-        w-72 sm:w-80 md:w-64 lg:w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-        transform transition-transform duration-300 ease-in-out
-        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-        flex flex-col h-screen
-      `}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-2 min-w-0">
-            <School className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 flex-shrink-0" />
-            <span className="font-bold text-base sm:text-lg text-gray-900 dark:text-white truncate">
-              EduSystem
-            </span>
-          </div>
-          <div className="flex items-center space-x-1">
+      <>
+        {/* Mobile backdrop */}
+        {isOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={onClose}
+          />
+        )}
+        
+        {/* Sidebar */}
+        <div className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center space-x-2">
+              <Building2 className="h-8 w-8 text-blue-600" />
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {selectedOrganization?.name}
+                </h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Organization Portal</p>
+              </div>
+            </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
-              aria-label="Close Sidebar"
+              className="lg:hidden"
             >
-              <X className="h-4 w-4 md:hidden" />
-              <Menu className="h-4 w-4 hidden md:block" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
-        </div>
 
-        {/* Context Info - Only show for non-SystemAdmin and non-OrganizationManager users */}
-        {user?.role !== 'SystemAdmin' && user?.role !== 'OrganizationManager' && (selectedInstitute || selectedClass || selectedSubject || selectedChild || selectedOrganization) && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                Current Selection
-              </span>
+          <ScrollArea className="flex-1 px-3 py-4">
+            <div className="space-y-2">
+              {/* Back button */}
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={handleBackNavigation}
-                className="h-6 w-6 p-0 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-800"
-                aria-label="Go Back"
+                className="w-full justify-start text-left"
+                onClick={onBackToOrganizations}
               >
-                <ArrowLeft className="h-3 w-3" />
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Organizations
               </Button>
-            </div>
-            <div className="space-y-1 text-xs">
-              {selectedOrganization && (
-                <div className="text-blue-600 dark:text-blue-400">
-                  <span className="font-medium">Organization:</span> 
-                  <span className="ml-1 truncate">{selectedOrganization.name}</span>
-                </div>
-              )}
-              {selectedInstitute && (
-                <div className="text-blue-600 dark:text-blue-400">
-                  <span className="font-medium">Institute:</span> 
-                  <span className="ml-1 truncate">{selectedInstitute.name}</span>
-                </div>
-              )}
-              {selectedClass && (
-                <div className="text-blue-600 dark:text-blue-400">
-                  <span className="font-medium">Class:</span> 
-                  <span className="ml-1 truncate">{selectedClass.name}</span>
-                </div>
-              )}
-              {selectedSubject && (
-                <div className="text-blue-600 dark:text-blue-400">
-                  <span className="font-medium">Subject:</span> 
-                  <span className="ml-1 truncate">{selectedSubject.name}</span>
-                </div>
-              )}
-              {selectedChild && (
-                <div className="text-blue-600 dark:text-blue-400">
-                  <span className="font-medium">Child:</span> 
-                  <span className="ml-1 truncate">
-                    {selectedChild.user.firstName} {selectedChild.user.lastName}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+              
+              <Separator className="my-2" />
 
-        {/* Navigation */}
-        <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
-          <div className="space-y-2">
-            <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance and academic sections if institute is selected and not OrganizationManager */}
-            {selectedInstitute && user?.role !== 'OrganizationManager' && (
-              <>
-                <SidebarSection title="Attendance" items={attendanceItems} />
-                <SidebarSection title="Academic" items={systemItems} />
-              </>
-            )}
-            <SidebarSection title="Settings" items={settingsItems} />
-          </div>
-        </ScrollArea>
-
-        {/* Footer */}
-        <div className="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-3 space-y-1">
-            <div className="truncate">
-              <span>Logged in as:</span> 
-              <span className="font-medium ml-1">{user?.name}</span>
+              {/* Organization portal navigation */}
+              {organizationPortalItems.map((item) => (
+                <Button
+                  key={item.key}
+                  variant={currentPage === item.key ? "secondary" : "ghost"}
+                  className="w-full justify-start text-left"
+                  onClick={() => {
+                    onPageChange(item.key);
+                    onClose();
+                  }}
+                >
+                  <item.icon className="mr-2 h-4 w-4" />
+                  {item.label}
+                </Button>
+              ))}
             </div>
+          </ScrollArea>
+        </div>
+      </>
+    );
+  }
+
+  let navigationItems = mainNavItems;
+
+  if (user?.role === 'Student') {
+    navigationItems = studentNavItems;
+  } else if (user?.role === 'Parent') {
+    navigationItems = parentNavItems;
+  } else if (user?.role === 'Teacher') {
+    navigationItems = teacherNavItems;
+  } else if (user?.role === 'AttendanceMarker') {
+    navigationItems = attendanceMarkerNavItems;
+  } else if (user?.role === 'InstituteAdmin') {
+    navigationItems = instituteAdminNavItems;
+  } else if (user?.role === 'SystemAdmin') {
+    navigationItems = mainNavItems;
+  }
+
+  
+  return (
+    <>
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-2">
+            <Building2 className="h-8 w-8 text-blue-600" />
             <div>
-              <span>Role:</span> 
-              <span className="font-medium ml-1">{user?.role}</span>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">EduFlow</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Education Management</p>
             </div>
           </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 h-8 sm:h-9"
+            onClick={onClose}
+            className="lg:hidden"
           >
-            <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
-            <span className="text-xs sm:text-sm">Logout</span>
+            <X className="h-4 w-4" />
           </Button>
         </div>
+
+        <ScrollArea className="flex-1 px-3 py-4">
+          <div className="space-y-2">
+            {/* Show limited navigation for OrganizationManager */}
+            {user?.role === 'OrganizationManager' ? (
+              <>
+                <Button
+                  variant={currentPage === 'organizations' ? "secondary" : "ghost"}
+                  className="w-full justify-start text-left"
+                  onClick={() => {
+                    onPageChange('organizations');
+                    onClose();
+                  }}
+                >
+                  <Building2 className="mr-2 h-4 w-4" />
+                  Organizations
+                </Button>
+                
+                <Button
+                  variant={currentPage === 'profile' ? "secondary" : "ghost"}
+                  className="w-full justify-start text-left"
+                  onClick={() => {
+                    onPageChange('profile');
+                    onClose();
+                  }}
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
+                </Button>
+                
+                <Button
+                  variant={currentPage === 'appearance' ? "secondary" : "ghost"}
+                  className="w-full justify-start text-left"
+                  onClick={() => {
+                    onPageChange('appearance');
+                    onClose();
+                  }}
+                >
+                  <Palette className="mr-2 h-4 w-4" />
+                  Appearance
+                </Button>
+              </>
+            ) : (
+              <>
+                {navigationItems.map((item) => (
+                  <Button
+                    key={item.key}
+                    variant={currentPage === item.key ? "secondary" : "ghost"}
+                    className="w-full justify-start text-left"
+                    onClick={() => {
+                      onPageChange(item.key);
+                      onClose();
+                    }}
+                  >
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {item.label}
+                  </Button>
+                ))}
+              </>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     </>
   );

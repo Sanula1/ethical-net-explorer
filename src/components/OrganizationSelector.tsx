@@ -4,15 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Search, ArrowLeft } from 'lucide-react';
+import { Building2, Search, ArrowLeft, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationApi, Organization } from '@/api/organization.api';
 
 interface OrganizationSelectorProps {
   onBack?: () => void;
+  onOrganizationSelect?: (organization: Organization) => void;
+  onCreateOrganization?: () => void;
 }
 
-const OrganizationSelector = ({ onBack }: OrganizationSelectorProps) => {
+const OrganizationSelector = ({ onBack, onOrganizationSelect, onCreateOrganization }: OrganizationSelectorProps) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +34,8 @@ const OrganizationSelector = ({ onBack }: OrganizationSelectorProps) => {
       setIsLoading(true);
       const response = await organizationApi.getOrganizations({
         page: 1,
-        limit: 10
+        limit: 10,
+        search: searchTerm
       });
       setOrganizations(response.data);
     } catch (error) {
@@ -57,6 +60,12 @@ const OrganizationSelector = ({ onBack }: OrganizationSelectorProps) => {
     }
 
     setFilteredOrganizations(filtered);
+  };
+
+  const handleOrganizationSelect = (organization: Organization) => {
+    if (onOrganizationSelect) {
+      onOrganizationSelect(organization);
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -94,6 +103,13 @@ const OrganizationSelector = ({ onBack }: OrganizationSelectorProps) => {
               <p className="text-gray-600 dark:text-gray-400">Choose an organization to manage</p>
             </div>
           </div>
+          
+          {onCreateOrganization && (
+            <Button onClick={onCreateOrganization}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Organization
+            </Button>
+          )}
         </div>
 
         {/* Search Filter */}
@@ -114,7 +130,7 @@ const OrganizationSelector = ({ onBack }: OrganizationSelectorProps) => {
           {filteredOrganizations.map((organization) => (
             <Card
               key={organization.organizationId}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
+              className="hover:shadow-lg transition-shadow"
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -149,6 +165,13 @@ const OrganizationSelector = ({ onBack }: OrganizationSelectorProps) => {
                       Institute ID: {organization.instituteId}
                     </div>
                   )}
+                  
+                  <Button 
+                    className="w-full mt-4"
+                    onClick={() => handleOrganizationSelect(organization)}
+                  >
+                    Select Organization
+                  </Button>
                 </div>
               </CardContent>
             </Card>
