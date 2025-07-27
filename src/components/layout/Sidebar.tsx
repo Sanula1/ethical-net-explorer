@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -16,10 +17,11 @@ import {
   QrCode,
   Presentation,
   FileVideo,
-  Homework,
+  BookOpen,
   ScrollText,
   BarChartBig,
   ImagePlus,
+  Palette,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -132,7 +134,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     {
       id: 'homework',
       label: 'Homework',
-      icon: Homework,
+      icon: BookOpen,
       roles: ['SystemAdmin', 'InstituteAdmin', 'Teacher', 'Student', 'Parent']
     },
     {
@@ -217,7 +219,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
             Subject: {selectedSubject.name}
           </p>}
           {selectedChild && <p className="text-sm text-gray-500 dark:text-gray-400">
-            Child: {selectedChild.name}
+            Child: {selectedChild.user.firstName} {selectedChild.user.lastName}
           </p>}
           {selectedOrganization && <p className="text-sm text-gray-500 dark:text-gray-400">
             Organization: {selectedOrganization.name}
