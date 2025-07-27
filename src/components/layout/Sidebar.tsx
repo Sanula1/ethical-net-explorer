@@ -43,13 +43,27 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
   const getMenuItems = () => {
     // For OrganizationManager role
     if (user?.role === 'OrganizationManager') {
-      // If they have logged into organization system, show Organizations menu
+      // If they have logged into organization system, show Organizations, Lectures, and Causes in main menu
       const baseOrgItems = [
         {
           id: 'organizations',
           label: 'Organizations',
           icon: Building2,
           permission: 'view-organizations',
+          alwaysShow: true
+        },
+        {
+          id: 'lectures',
+          label: 'Lectures',
+          icon: Video,
+          permission: 'view-lectures',
+          alwaysShow: true
+        },
+        {
+          id: 'causes',
+          label: 'Causes',
+          icon: Target,
+          permission: 'view-causes',
           alwaysShow: true
         }
       ];
@@ -72,10 +86,24 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         icon: Building2,
         permission: 'view-organizations',
         alwaysShow: true // Always show organizations for all users
+      },
+      {
+        id: 'lectures',
+        label: 'Lectures',
+        icon: Video,
+        permission: 'view-lectures',
+        alwaysShow: true // Always show lectures for all users
+      },
+      {
+        id: 'causes',
+        label: 'Causes',
+        icon: Target,
+        permission: 'view-causes',
+        alwaysShow: true // Always show causes for all users
       }
     ];
 
-    // If no institute is selected, return basic navigation including organizations
+    // If no institute is selected, return basic navigation including organizations, lectures, and causes
     if (!selectedInstitute) {
       return baseItems;
     }
