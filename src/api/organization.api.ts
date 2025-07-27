@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 import { getBaseUrl2 } from '@/contexts/utils/auth.api';
 
@@ -67,71 +66,6 @@ export interface OrganizationLoginResponse {
     organizations: string[];
     isGlobalAdmin: boolean;
   };
-}
-
-export interface Cause {
-  causeId: string;
-  title: string;
-  description: string;
-  isPublic: boolean;
-  organizationId: string;
-}
-
-export interface CauseCreateData {
-  organizationId: string;
-  title: string;
-  description: string;
-  isPublic: boolean;
-}
-
-export interface CausesResponse {
-  data: Cause[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-  meta: {
-    sortBy: string;
-    sortOrder: string;
-  };
-}
-
-export interface OrganizationLecture {
-  lectureId: string;
-  causeId: string;
-  title: string;
-  description: string | null;
-  content: string;
-  venue: string | null;
-  mode: string | null;
-  timeStart: any;
-  timeEnd: any;
-  liveLink: string | null;
-  liveMode: string | null;
-  recordingUrl: string | null;
-  isPublic: boolean;
-  createdAt: any;
-  updatedAt: any;
-  cause: {
-    causeId: string;
-    title: string;
-    organizationId: string;
-    organization: {
-      organizationId: string;
-      name: string;
-    };
-  };
-}
-
-export interface LectureCreateData {
-  causeId: string;
-  title: string;
-  content: string;
-  isPublic: boolean;
 }
 
 class OrganizationApiClient {
@@ -227,56 +161,6 @@ class OrganizationApiClient {
       apiClient.setUseBaseUrl2(true);
       
       await apiClient.delete(`${this.baseUrl}/organizations/${id}`);
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  // Causes API methods
-  async getCauses(params?: OrganizationQueryParams): Promise<CausesResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.get<CausesResponse>(`${this.baseUrl}/causes`, params);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async createCause(data: CauseCreateData): Promise<Cause> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.post<Cause>(`${this.baseUrl}/causes`, data);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  // Lectures API methods
-  async getLectures(): Promise<OrganizationLecture[]> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.get<OrganizationLecture[]>(`${this.baseUrl}/lectures`);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async createLecture(data: LectureCreateData): Promise<OrganizationLecture> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.post<OrganizationLecture>(`${this.baseUrl}/lectures`, data);
-      return response;
     } finally {
       apiClient.setUseBaseUrl2(false);
     }
