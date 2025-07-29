@@ -1,69 +1,114 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Eye, EyeOff, Building2 } from 'lucide-react';
+import { Building2, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { organizationApi } from '@/api/organization.api';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface OrganizationLoginProps {
-  onLogin: (loginResponse: any) => void;
-  onBack: () => void;
+  onLogin?: (loginResponse: any) => void;
+  onBack?: () => void;
 }
 
 const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [baseUrl2, setBaseUrl2] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Load existing baseUrl2 from localStorage
+    const existingBaseUrl2 = localStorage.getItem('baseUrl2');
+    if (existingBaseUrl2) {
+      setBaseUrl2(existingBaseUrl2);
+    }
+  }, []);
+
+  const validateUrl = (url: string): boolean => {
+    try {
+      const urlObj = new URL(url);
+      // Allow both HTTP and HTTPS for development/production flexibility
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
       toast({
-        title: "Error",
-        description: "Please fill in all fields",
+        title: "Validation Error",
+        description: "Please enter both email and password",
         variant: "destructive",
       });
       return;
     }
 
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://localhost:3001/organization/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password
-        }),
+    if (!baseUrl2) {
+      toast({
+        title: "Configuration Error",
+        description: "Please set the organization API base URL",
+        variant: "destructive",
       });
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error('Login failed');
-      }
+    if (!validateUrl(baseUrl2)) {
+      toast({
+        title: "Invalid URL",
+        description: "Please enter a valid URL (http:// or https://)",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      const data = await response.json();
+    // Save baseUrl2 to localStorage
+    localStorage.setItem('baseUrl2', baseUrl2);
+
+    setIsLoading(true);
+    
+    try {
+      const loginResponse = await organizationApi.loginToOrganization({ email, password });
       
-      // Store the organization token
-      localStorage.setItem('org_access_token', data.access_token);
+      // Store organization access token
+      localStorage.setItem('org_access_token', loginResponse.access_token);
+      
+      if (onLogin) {
+        onLogin(loginResponse);
+      }
       
       toast({
-        title: "Success",
-        description: "Successfully logged in to organization system",
+        title: "Login Successful",
+        description: "Welcome to the organization portal",
       });
-
-      onLogin(data);
     } catch (error) {
       console.error('Organization login error:', error);
+      
+      let errorMessage = "Login failed. Please check your credentials and try again.";
+      if (error instanceof Error) {
+        if (error.message.includes('Mixed Content') || error.message.includes('Failed to fetch')) {
+          errorMessage = "Network error. Please check the API URL and ensure the server is accessible.";
+        } else if (error.message.includes('Organization base URL not configured')) {
+          errorMessage = "Please configure the organization API base URL.";
+        } else if (error.message.includes('HTTP Error: 404')) {
+          errorMessage = "API endpoint not found. Please verify the base URL is correct.";
+        } else if (error.message.includes('HTTP Error: 401')) {
+          errorMessage = "Invalid credentials. Please check your email and password.";
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to login to organization system",
+        title: "Login Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -74,25 +119,25 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="p-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center space-x-2">
-              <Building2 className="h-6 w-6 text-blue-600" />
-              <span className="text-lg font-semibold">Organizations</span>
+        <CardHeader className="text-center">
+          <div className="flex items-center justify-between mb-4">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="p-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <div className="flex items-center justify-center flex-1">
+              <Building2 className="h-12 w-12 text-blue-600" />
             </div>
-            <div className="w-10" /> {/* Spacer for alignment */}
           </div>
-          <CardTitle className="text-2xl text-center">Organization Login</CardTitle>
-          <CardDescription className="text-center">
-            Enter your organization credentials to continue
+          <CardTitle className="text-2xl font-bold">Organization Login</CardTitle>
+          <CardDescription>
+            Sign in to access your organization's portal
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -108,12 +153,13 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
                 required
               />
             </div>
+            
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
                 <Input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -134,12 +180,43 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
                 </Button>
               </div>
             </div>
-            <Button
-              type="submit"
+
+            <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-sm text-muted-foreground"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Advanced Settings
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-2">
+                <div className="space-y-2">
+                  <Label htmlFor="baseUrl2">Organization API Base URL</Label>
+                  <Input
+                    id="baseUrl2"
+                    type="text"
+                    placeholder="http://localhost:3000 or https://your-org-api.com"
+                    value={baseUrl2}
+                    onChange={(e) => setBaseUrl2(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The base URL for your organization's API endpoint (supports both HTTP and HTTPS)
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Button 
+              type="submit" 
               className="w-full"
               disabled={isLoading}
             >
-              {isLoading ? 'Logging in...' : 'Login to Organization'}
+              {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
         </CardContent>

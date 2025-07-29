@@ -1,166 +1,253 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Users, Target, Shield } from 'lucide-react';
-import { organizationApi, Organization, OrganizationQueryParams } from '@/api/organization.api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Building2, Search, Users, Award, ArrowLeft, Plus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { organizationApi, Organization } from '@/api/organization.api';
+import { useAuth } from '@/contexts/AuthContext';
 
-export const OrganizationSelector: React.FC = () => {
+interface OrganizationSelectorProps {
+  onOrganizationSelect?: (organization: Organization) => void;
+  onBack?: () => void;
+  onCreateOrganization?: () => void;
+  userPermissions?: {
+    organizations: string[];
+    isGlobalAdmin: boolean;
+  };
+}
+
+const OrganizationSelector = ({ 
+  onOrganizationSelect, 
+  onBack, 
+  onCreateOrganization, 
+  userPermissions 
+}: OrganizationSelectorProps) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-    hasNext: false,
-    hasPrev: false
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'INSTITUTE' | 'GLOBAL'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'PRESIDENT' | 'MEMBER'>('all');
+  const { toast } = useToast();
+  const { user } = useAuth();
 
-  const fetchEnrolledOrganizations = async (params: OrganizationQueryParams = {}) => {
+  useEffect(() => {
+    loadOrganizations();
+  }, []);
+
+  useEffect(() => {
+    filterOrganizations();
+  }, [organizations, searchTerm, typeFilter, roleFilter]);
+
+  const loadOrganizations = async () => {
     try {
       setIsLoading(true);
-      setError(null);
-      
       const response = await organizationApi.getUserEnrolledOrganizations({
         page: 1,
-        limit: 10,
-        ...params
+        limit: 50
       });
-      
       setOrganizations(response.data);
-      setPagination(response.pagination);
-    } catch (err) {
-      console.error('Error fetching enrolled organizations:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch organizations');
+    } catch (error) {
+      console.error('Error loading organizations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load organizations",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchEnrolledOrganizations();
-  }, []);
+  const filterOrganizations = () => {
+    let filtered = organizations;
 
-  const handleSelectOrganization = (org: Organization) => {
-    // Store selected organization in localStorage or context
-    localStorage.setItem('selectedOrganization', JSON.stringify(org));
-    console.log('Selected organization:', org);
-    // You can add navigation or state management here
+    if (searchTerm) {
+      filtered = filtered.filter(org =>
+        org.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(org => org.type === typeFilter);
+    }
+
+    if (roleFilter !== 'all') {
+      filtered = filtered.filter(org => org.userRole === roleFilter);
+    }
+
+    setFilteredOrganizations(filtered);
   };
 
-  const handlePageChange = (newPage: number) => {
-    fetchEnrolledOrganizations({ page: newPage, limit: pagination.limit });
+  const handleOrganizationSelect = (organization: Organization) => {
+    if (onOrganizationSelect) {
+      onOrganizationSelect(organization);
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    return type === 'INSTITUTE' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
+  };
+
+  const getRoleColor = (role: string) => {
+    return role === 'PRESIDENT' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800';
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading organizations...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <p className="text-red-500 mb-4">Error: {error}</p>
-        <Button onClick={() => fetchEnrolledOrganizations()}>
-          Try Again
-        </Button>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading organizations...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">Select Organization</h1>
-      
-      {organizations.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-gray-500">No organizations found</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {organizations.map((org) => (
-            <Card key={org.organizationId} className="cursor-pointer hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{org.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1">
-                      <Badge variant={org.type === 'INSTITUTE' ? 'default' : 'secondary'}>
-                        {org.type}
-                      </Badge>
-                      {org.isVerified && (
-                        <Badge variant="outline" className="flex items-center gap-1">
-                          <Shield className="h-3 w-3" />
-                          Verified
-                        </Badge>
-                      )}
-                      {org.isPublic && <Badge variant="outline">Public</Badge>}
-                    </CardDescription>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 px-4 py-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center space-x-4">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="p-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Select Organization</h1>
+              <p className="text-gray-600 dark:text-gray-400">Choose an organization to manage</p>
+            </div>
+          </div>
+          
+          {/* Show create button only for organization managers */}
+          {(user?.role === 'OrganizationManager' || userPermissions?.isGlobalAdmin) && onCreateOrganization && (
+            <Button onClick={onCreateOrganization} className="flex items-center space-x-2">
+              <Plus className="h-4 w-4" />
+              <span>Create Organization</span>
+            </Button>
+          )}
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search organizations..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={typeFilter} onValueChange={(value: any) => setTypeFilter(value)}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="INSTITUTE">Institute</SelectItem>
+              <SelectItem value="GLOBAL">Global</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={roleFilter} onValueChange={(value: any) => setRoleFilter(value)}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              <SelectItem value="PRESIDENT">President</SelectItem>
+              <SelectItem value="MEMBER">Member</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Organizations Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredOrganizations.map((organization) => (
+            <Card
+              key={organization.organizationId}
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={() => handleOrganizationSelect(organization)}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Building2 className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{organization.name}</CardTitle>
+                      <CardDescription className="text-sm">
+                        Joined: {new Date(organization.joinedAt!).toLocaleDateString()}
+                      </CardDescription>
+                    </div>
                   </div>
-                  <div className="text-right text-sm text-gray-500">
-                    <p>Role: <span className="font-medium">{org.userRole}</span></p>
-                    {org.joinedAt && (
-                      <p>Joined: {new Date(org.joinedAt).toLocaleDateString()}</p>
-                    )}
-                  </div>
+                  {organization.isVerified && (
+                    <Badge variant="outline" className="bg-green-50 text-green-700">
+                      Verified
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-1">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Badge className={getTypeColor(organization.type)}>
+                      {organization.type}
+                    </Badge>
+                    <Badge className={getRoleColor(organization.userRole!)}>
+                      {organization.userRole}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center space-x-1">
                       <Users className="h-4 w-4" />
-                      <span>{org.memberCount || 0} members</span>
+                      <span>{organization.memberCount} members</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Target className="h-4 w-4" />
-                      <span>{org.causeCount || 0} causes</span>
+                    <div className="flex items-center space-x-1">
+                      <Award className="h-4 w-4" />
+                      <span>{organization.causeCount} causes</span>
                     </div>
                   </div>
-                  <Button 
-                    onClick={() => handleSelectOrganization(org)}
-                    variant="outline"
-                  >
-                    Select
-                  </Button>
+                  
+                  {organization.isPublic && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                      Public
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-      )}
 
-      {/* Pagination */}
-      {pagination.totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 mt-6">
-          <Button
-            variant="outline"
-            disabled={!pagination.hasPrev}
-            onClick={() => handlePageChange(pagination.page - 1)}
-          >
-            Previous
-          </Button>
-          <span className="text-sm text-gray-600">
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            disabled={!pagination.hasNext}
-            onClick={() => handlePageChange(pagination.page + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      )}
+        {filteredOrganizations.length === 0 && (
+          <div className="text-center py-12">
+            <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              No organizations found
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              {searchTerm || typeFilter !== 'all' || roleFilter !== 'all'
+                ? 'Try adjusting your filters'
+                : 'You are not enrolled in any organizations yet'}
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+
+export default OrganizationSelector;

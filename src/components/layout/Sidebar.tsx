@@ -25,8 +25,7 @@ import {
   ArrowLeft,
   Notebook,
   Images,
-  Palette,
-  Target
+  Palette
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -39,59 +38,9 @@ interface SidebarProps {
 const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) => {
   const { user, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, logout, setSelectedInstitute, setSelectedClass, setSelectedSubject, setSelectedChild, setSelectedOrganization } = useAuth();
 
-  // Get menu items based on current selection state and user role
+  // Get menu items based on current selection state
   const getMenuItems = () => {
-    // For InstituteAdmin, Student, Teacher roles - show only Select Institute and Organizations
-    if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
-      return [
-        {
-          id: 'select-institute',
-          label: 'Select Institute',
-          icon: Building2,
-          permission: 'view-institutes',
-          alwaysShow: true
-        },
-        {
-          id: 'organizations',
-          label: 'Organizations',
-          icon: Building2,
-          permission: 'view-organizations',
-          alwaysShow: true
-        }
-      ];
-    }
-
-    // For OrganizationManager role
-    if (user?.role === 'OrganizationManager') {
-      // If they have logged into organization system, show Organizations, Lectures, and Causes in main menu
-      const baseOrgItems = [
-        {
-          id: 'organizations',
-          label: 'Organizations',
-          icon: Building2,
-          permission: 'view-organizations',
-          alwaysShow: true
-        },
-        {
-          id: 'lectures',
-          label: 'Lectures',
-          icon: Video,
-          permission: 'view-lectures',
-          alwaysShow: true
-        },
-        {
-          id: 'causes',
-          label: 'Causes',
-          icon: Target,
-          permission: 'view-causes',
-          alwaysShow: true
-        }
-      ];
-      
-      return baseOrgItems;
-    }
-
-    // For other roles (SystemAdmin, etc.) - keep existing logic
+    // Base items that are always available for all users
     const baseItems = [
       {
         id: 'dashboard',
@@ -105,25 +54,11 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         label: 'Organizations',
         icon: Building2,
         permission: 'view-organizations',
-        alwaysShow: true
-      },
-      {
-        id: 'lectures',
-        label: 'Lectures',
-        icon: Video,
-        permission: 'view-lectures',
-        alwaysShow: true
-      },
-      {
-        id: 'causes',
-        label: 'Causes',
-        icon: Target,
-        permission: 'view-causes',
-        alwaysShow: true
+        alwaysShow: true // Always show organizations for all users
       }
     ];
 
-    // If no institute is selected, return basic navigation including organizations, lectures, and causes
+    // If no institute is selected, return basic navigation including organizations
     if (!selectedInstitute) {
       return baseItems;
     }
@@ -232,36 +167,12 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     }
   ];
 
-  const coursesItems = [
+  const systemItems = [
     {
-      id: 'courses',
-      label: 'All Courses',
-      icon: Award,
-      permission: 'view-courses',
-      alwaysShow: false
-    },
-    {
-      id: 'create-course',
-      label: 'Create Course',
-      icon: BookOpen,
-      permission: 'create-course',
-      alwaysShow: false
-    },
-    {
-      id: 'course-materials',
-      label: 'Course Materials',
-      icon: FileText,
-      permission: 'view-course-materials',
-      alwaysShow: false
-    }
-  ];
-
-  const lecturesItems = [
-    {
-      id: 'lectures',
-      label: 'All Lectures',
-      icon: Video,
-      permission: 'view-lectures',
+      id: 'grading',
+      label: 'Grading',
+      icon: BarChart3,
+      permission: 'view-grading',
       alwaysShow: false
     },
     {
@@ -269,47 +180,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       label: 'Live Lectures',
       icon: Video,
       permission: 'view-lectures',
-      alwaysShow: false
-    },
-    {
-      id: 'create-lecture',
-      label: 'Create Lecture',
-      icon: Video,
-      permission: 'create-lecture',
-      alwaysShow: false
-    }
-  ];
-
-  const causesItems = [
-    {
-      id: 'causes',
-      label: 'All Causes',
-      icon: Target,
-      permission: 'view-causes',
-      alwaysShow: false
-    },
-    {
-      id: 'create-cause',
-      label: 'Create Cause',
-      icon: Target,
-      permission: 'create-cause',
-      alwaysShow: false
-    },
-    {
-      id: 'cause-materials',
-      label: 'Cause Materials',
-      icon: FileText,
-      permission: 'view-cause-materials',
-      alwaysShow: false
-    }
-  ];
-
-  const systemItems = [
-    {
-      id: 'grading',
-      label: 'Grading',
-      icon: BarChart3,
-      permission: 'view-grading',
       alwaysShow: false
     },
     {
@@ -335,89 +205,47 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     }
   ];
 
-  const getSettingsItems = () => {
-    // For InstituteAdmin, Student, Teacher roles - show only Profile and Appearance
-    if (user?.role === 'InstituteAdmin' || user?.role === 'Student' || user?.role === 'Teacher') {
-      return [
-        {
-          id: 'profile',
-          label: 'Profile',
-          icon: User,
-          permission: 'view-profile',
-          alwaysShow: true
-        },
-        {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: Palette,
-          permission: 'view-appearance',
-          alwaysShow: true
-        }
-      ];
+  const settingsItems = [
+    {
+      id: 'profile',
+      label: 'Profile',
+      icon: User,
+      permission: 'view-profile',
+      alwaysShow: false
+    },
+    {
+      id: 'appearance',
+      label: 'Appearance',
+      icon: Palette,
+      permission: 'view-appearance',
+      alwaysShow: false
+    },
+    ...(selectedInstitute ? [{
+      id: 'institute-details',
+      label: 'Institute Details',
+      icon: Building2,
+      permission: 'view-institute-details',
+      alwaysShow: false
+    }] : []),
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: Settings,
+      permission: 'view-settings',
+      alwaysShow: false
     }
-
-    // For OrganizationManager role, show only Profile and Appearance
-    if (user?.role === 'OrganizationManager') {
-      return [
-        {
-          id: 'profile',
-          label: 'Profile',
-          icon: User,
-          permission: 'view-profile',
-          alwaysShow: true
-        },
-        {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: Palette,
-          permission: 'view-appearance',
-          alwaysShow: true
-        }
-      ];
-    }
-
-    // For all other users, show all settings items
-    return [
-      {
-        id: 'profile',
-        label: 'Profile',
-        icon: User,
-        permission: 'view-profile',
-        alwaysShow: false
-      },
-      {
-        id: 'appearance',
-        label: 'Appearance',
-        icon: Palette,
-        permission: 'view-appearance',
-        alwaysShow: false
-      },
-      ...(selectedInstitute ? [{
-        id: 'institute-details',
-        label: 'Institute Details',
-        icon: Building2,
-        permission: 'view-institute-details',
-        alwaysShow: false
-      }] : []),
-      {
-        id: 'settings',
-        label: 'Settings',
-        icon: Settings,
-        permission: 'view-settings',
-        alwaysShow: false
-      }
-    ];
-  };
+  ];
 
   const userRole = user?.role || 'Student';
   const menuItems = getMenuItems();
-  const settingsItems = getSettingsItems();
 
   const filterItemsByPermission = (items: any[]) => {
     return items.filter(item => {
+      // Always show items marked as alwaysShow
       if (item.alwaysShow) {
         return true;
       }
+      // Otherwise check permission
       return AccessControl.hasPermission(userRole as any, item.permission);
     });
   };
@@ -435,14 +263,19 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   const handleBackNavigation = () => {
     if (selectedOrganization) {
+      // Go back from organization level to organization selection
       setSelectedOrganization(null);
     } else if (selectedChild) {
+      // Go back from child level to children selection
       setSelectedChild(null);
     } else if (selectedSubject) {
+      // Go back from subject level to class level
       setSelectedSubject(null);
     } else if (selectedClass) {
+      // Go back from class level to institute level
       setSelectedClass(null);
     } else if (selectedInstitute) {
+      // Go back from institute level to institute selection
       setSelectedInstitute(null);
     }
   };
@@ -576,13 +409,10 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
             <SidebarSection title="Main" items={menuItems} />
-            {/* Only show attendance, courses, lectures, causes and academic sections if institute is selected and not OrganizationManager and not InstituteAdmin/Student/Teacher */}
-            {selectedInstitute && user?.role !== 'OrganizationManager' && user?.role !== 'InstituteAdmin' && user?.role !== 'Student' && user?.role !== 'Teacher' && (
+            {/* Only show attendance and academic sections if institute is selected */}
+            {selectedInstitute && (
               <>
                 <SidebarSection title="Attendance" items={attendanceItems} />
-                <SidebarSection title="Courses" items={coursesItems} />
-                <SidebarSection title="Lectures" items={lecturesItems} />
-                <SidebarSection title="Causes" items={causesItems} />
                 <SidebarSection title="Academic" items={systemItems} />
               </>
             )}

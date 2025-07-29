@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 import { getBaseUrl2 } from '@/contexts/utils/auth.api';
 
