@@ -36,6 +36,29 @@ interface ClassData {
   };
 }
 
+interface StudentEnrolledClassData {
+  ics_institute_id: string;
+  ics_institute_class_id: string;
+  ics_student_user_id: string;
+  ics_is_active: number;
+  ics_is_verified: number;
+  ics_enrollment_method: string;
+  ics_verified_by: string | null;
+  ics_verified_at: string | null;
+  enrolledAt: string;
+  className: string;
+  classDescription: string;
+  classCode: string;
+  grade: number;
+  teacher_id: string;
+  specialty: string;
+  academic_year: string;
+  start_date: string;
+  end_date: string;
+  instituteName: string;
+  instituteCode: string;
+}
+
 interface TeacherClassSubjectData {
   instituteId: string;
   classId: string;
@@ -108,8 +131,14 @@ const ClassSelector = () => {
       let params: Record<string, any> = {};
       
       if (userRole === 'Student') {
-        endpoint = `/institute-class-students/student/${user?.id}/classes`;
-        params = { limit: 100, instituteId: currentInstituteId, isActive: true };
+        // Use the specific student enrolled classes endpoint
+        endpoint = `/students/${user?.id}/classes/enrolled`;
+        params = { 
+          instituteId: currentInstituteId, 
+          verifiedOnly: false, 
+          page: 1, 
+          limit: 10 
+        };
       } else if (userRole === 'Teacher') {
         endpoint = `/institute-class-subjects/institute/${currentInstituteId}/teacher/${user?.id}`;
       } else if (userRole === 'InstituteAdmin' || userRole === 'AttendanceMarker') {
@@ -176,7 +205,34 @@ const ClassSelector = () => {
   const processClassesData = (result: any, userRole: UserRole) => {
     let classesArray: ClassData[] = [];
     
-    if (userRole === 'Teacher') {
+    if (userRole === 'Student') {
+      // Handle student enrolled classes response
+      let studentEnrolledClasses: StudentEnrolledClassData[] = [];
+      
+      if (Array.isArray(result)) {
+        studentEnrolledClasses = result;
+      } else if (result.data && Array.isArray(result.data)) {
+        studentEnrolledClasses = result.data;
+      }
+
+      classesArray = studentEnrolledClasses.map((item: StudentEnrolledClassData): ClassData => ({
+        id: item.ics_institute_class_id,
+        name: item.className,
+        code: item.classCode,
+        description: item.classDescription,
+        specialty: item.specialty,
+        classType: 'Student Enrollment',
+        academicYear: item.academic_year,
+        isActive: item.ics_is_active === 1,
+        capacity: 0, // Not provided in student response
+        grade: item.grade,
+        classTeacherId: item.teacher_id,
+        _count: {
+          students: 0, // Not provided in student response
+          subjects: 0  // Not provided in student response
+        }
+      }));
+    } else if (userRole === 'Teacher') {
       let teacherClassSubjects: TeacherClassSubjectData[] = [];
       
       if (Array.isArray(result)) {
@@ -577,10 +633,10 @@ const ClassSelector = () => {
       {!dataLoaded ? (
         <div className="text-center py-8 sm:py-12 px-4">
           <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm sm:text-base">
-            Click the load button to view your classes
+            Click the load button to view your enrolled classes
           </p>
           <Button 
-            onClick={handleLoadDataClick}
+            onClick={() => fetchClassesByRole(false)}
             disabled={isLoading}
             className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
           >
@@ -602,7 +658,7 @@ const ClassSelector = () => {
           <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
             {searchTerm || gradeFilter !== 'all' || specialtyFilter !== 'all' || classTypeFilter !== 'all' || academicYearFilter !== 'all' || statusFilter !== 'all'
               ? 'No classes match your current filters.'
-              : 'No classes found for your role.'}
+              : 'No enrolled classes found.'}
           </p>
         </div>
       ) : (
