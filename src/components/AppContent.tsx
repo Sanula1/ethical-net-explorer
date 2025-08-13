@@ -46,7 +46,7 @@ const AppContent = ({ currentPage, onPageChange }: AppContentProps) => {
   const { user, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization } = useAuth();
 
   if (!user) {
-    return <Login />;
+    return <Login onLogin={() => {}} loginFunction={async () => {}} />;
   }
 
   const userRole = user.role;
