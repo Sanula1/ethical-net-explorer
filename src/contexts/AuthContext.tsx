@@ -194,7 +194,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setTimeout(async () => {
         try {
           await cachedApiClient.preload(
-            `/institute-class-subjects/institute/${currentInstituteId}/class/${classData.id}`,
+            `/institute-class-subjects/institute/${currentInstituteId}`,
             undefined,
             60
           );
@@ -286,6 +286,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setSelectedChild,
     setSelectedOrganization,
     refreshUserData,
+    isAuthenticated: !!user,
     isLoading
   };
 

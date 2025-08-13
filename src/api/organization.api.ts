@@ -12,6 +12,12 @@ export interface Organization {
   joinedAt?: string;
   memberCount?: number;
   causeCount?: number;
+  createdAt?: any;
+  institute?: {
+    instituteId: string;
+    name: string;
+    imageUrl: string;
+  };
 }
 
 export interface OrganizationCreateData {
@@ -36,6 +42,11 @@ export interface OrganizationResponse {
     sortBy: string;
     sortOrder: string;
   };
+  institute?: {
+    instituteId: string;
+    name: string;
+    imageUrl: string;
+  };
 }
 
 export interface OrganizationQueryParams {
@@ -53,6 +64,7 @@ export interface OrganizationLoginCredentials {
   password: string;
 }
 
+// Updated login response interface to match new API
 export interface OrganizationLoginResponse {
   access_token: string;
   user: {
@@ -60,11 +72,87 @@ export interface OrganizationLoginResponse {
     email: string;
     name: string;
     isFirstLogin: boolean;
-    lastLoginAt: any;
   };
   permissions: {
     organizations: string[];
     isGlobalAdmin: boolean;
+  };
+}
+
+// Course/Cause interfaces
+export interface Course {
+  causeId: string;
+  title: string;
+  description: string;
+  isPublic: boolean;
+  organizationId: string;
+}
+
+export interface CourseResponse {
+  data: Course[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+  meta: {
+    sortBy: string;
+    sortOrder: string;
+  };
+}
+
+// Course create data interface
+export interface CourseCreateData {
+  title: string;
+  description: string;
+  organizationId: string;
+}
+
+// Lecture interfaces
+export interface LectureDocument {
+  documentationId: string;
+  title: string;
+  description: string;
+  docUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationLecture {
+  lectureId: string;
+  title: string;
+  description: string;
+  venue: string;
+  mode: 'online' | 'physical';
+  timeStart: string;
+  timeEnd: string;
+  liveLink: string | null;
+  liveMode: string | null;
+  recordingUrl: string | null;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+  causeId: string;
+  documents: LectureDocument[];
+  documentCount: number;
+}
+
+export interface LectureResponse {
+  data: OrganizationLecture[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+  meta: {
+    sortBy: string;
+    sortOrder: string;
   };
 }
 
@@ -107,6 +195,66 @@ class OrganizationApiClient {
     }
   }
 
+  async getOrganizations(params?: OrganizationQueryParams): Promise<OrganizationResponse> {
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations`, params);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
+  }
+
+  async getInstituteOrganizations(instituteId: string, params?: OrganizationQueryParams): Promise<OrganizationResponse> {
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations/institute/${instituteId}`, params);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
+  }
+
+  async getCourses(params?: OrganizationQueryParams): Promise<CourseResponse> {
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<CourseResponse>(`${this.baseUrl}/causes`, params);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
+  }
+
+  async getOrganizationCourses(organizationId: string, params?: OrganizationQueryParams): Promise<CourseResponse> {
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<CourseResponse>(`${this.baseUrl}/organizations/${organizationId}/causes`, params);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
+  }
+
+  async getLectures(params?: OrganizationQueryParams): Promise<LectureResponse> {
+    try {
+      this.checkBaseUrl2();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.get<LectureResponse>(`${this.baseUrl}/lectures`, params);
+      return response;
+    } finally {
+      apiClient.setUseBaseUrl2(false);
+    }
+  }
+
   async createOrganization(data: OrganizationCreateData): Promise<Organization> {
     try {
       this.checkBaseUrl2();
@@ -119,12 +267,12 @@ class OrganizationApiClient {
     }
   }
 
-  async getOrganizations(params?: OrganizationQueryParams): Promise<OrganizationResponse> {
+  async createCourse(data: CourseCreateData): Promise<Course> {
     try {
       this.checkBaseUrl2();
       apiClient.setUseBaseUrl2(true);
       
-      const response = await apiClient.get<OrganizationResponse>(`${this.baseUrl}/organizations`, params);
+      const response = await apiClient.post<Course>(`${this.baseUrl}/causes`, data);
       return response;
     } finally {
       apiClient.setUseBaseUrl2(false);

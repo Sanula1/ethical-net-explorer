@@ -97,9 +97,8 @@ class InstituteApi {
     classId?: string, 
     forceRefresh = false
   ): Promise<any[]> {
-    const endpoint = classId 
-      ? `/institute-class-subjects/institute/${instituteId}/class/${classId}`
-      : `/institute-class-subjects/institute/${instituteId}`;
+    // Use the correct endpoint that works based on network requests
+    const endpoint = `/institute-class-subjects/institute/${instituteId}`;
     
     console.log('Fetching institute class subjects:', endpoint, { forceRefresh });
     

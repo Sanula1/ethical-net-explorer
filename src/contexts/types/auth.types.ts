@@ -110,6 +110,8 @@ export interface AuthContextType {
   setSelectedSubject: (subject: Subject | null) => void;
   setSelectedChild: (child: Child | null) => void;
   setSelectedOrganization: (organization: Organization | null) => void;
+  refreshUserData?: (forceRefresh?: boolean) => Promise<void>;
+  isAuthenticated: boolean;
   isLoading: boolean;
 }
 

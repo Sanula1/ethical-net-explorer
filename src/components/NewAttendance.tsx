@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,7 +44,7 @@ interface AttendanceResponse {
   };
 }
 
-const Attendance = () => {
+const NewAttendance = () => {
   const { selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId, user } = useAuth();
   const { toast } = useToast();
   
@@ -512,4 +511,4 @@ const Attendance = () => {
   );
 };
 
-export default Attendance;
+export default NewAttendance;

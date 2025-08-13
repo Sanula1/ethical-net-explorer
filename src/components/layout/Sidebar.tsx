@@ -205,6 +205,38 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     }
   ];
 
+  // Teacher-specific items that require Institute + Class + Subject selection
+  const teacherSubjectItems = [
+    {
+      id: 'teacher-students',
+      label: 'Students',
+      icon: Users,
+      permission: 'view-students',
+      alwaysShow: false
+    },
+    {
+      id: 'teacher-homework',
+      label: 'Homework',
+      icon: Notebook,
+      permission: 'view-homework',
+      alwaysShow: false
+    },
+    {
+      id: 'teacher-exams',
+      label: 'Exams',
+      icon: FileText,
+      permission: 'view-exams',
+      alwaysShow: false
+    },
+    {
+      id: 'teacher-lectures',
+      label: 'Lectures',
+      icon: Video,
+      permission: 'view-lectures',
+      alwaysShow: false
+    }
+  ];
+
   const settingsItems = [
     {
       id: 'profile',
@@ -415,6 +447,10 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
                 <SidebarSection title="Attendance" items={attendanceItems} />
                 <SidebarSection title="Academic" items={systemItems} />
               </>
+            )}
+            {/* Teacher-specific section - only show when Institute, Class, and Subject are selected and user is Teacher */}
+            {selectedInstitute && selectedClass && selectedSubject && user?.role === 'Teacher' && (
+              <SidebarSection title="Subject Management" items={teacherSubjectItems} />
             )}
             <SidebarSection title="Settings" items={settingsItems} />
           </div>
