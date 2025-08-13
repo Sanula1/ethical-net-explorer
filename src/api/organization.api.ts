@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 import { getBaseUrl2 } from '@/contexts/utils/auth.api';
 
@@ -157,76 +156,6 @@ export interface LectureResponse {
   };
 }
 
-// New interfaces for member management
-export interface OrganizationMember {
-  userId: string;
-  name: string;
-  email: string;
-  role: string;
-  isVerified: boolean;
-  joinedAt: any;
-}
-
-export interface OrganizationMembersResponse {
-  members: OrganizationMember[];
-  totalMembers: number;
-  roleBreakdown: Record<string, number>;
-}
-
-export interface AssignRoleData {
-  userId: string;
-  role: string;
-}
-
-export interface AssignRoleResponse {
-  message: string;
-  userId: string;
-  organizationId: string;
-  role: string;
-  assignedAt: any;
-}
-
-export interface AssignInstituteData {
-  instituteId: string;
-}
-
-export interface AssignInstituteResponse {
-  success: boolean;
-  message: string;
-  timestamp: string;
-  operation: string;
-  organizationId: string;
-  instituteId: string;
-  performedBy: {
-    userId: string;
-    role: string | null;
-  };
-}
-
-export interface EnrollOrganizationData {
-  organizationId: string;
-  enrollmentKey?: string;
-}
-
-export interface EnrollOrganizationResponse {
-  organizationId: string;
-  userId: string;
-  role: string;
-  isVerified: boolean;
-  createdAt: any;
-  updatedAt: any;
-  user: {
-    userId: string;
-    email: string;
-    name: string;
-  };
-  organization: {
-    organizationId: string;
-    name: string;
-    type: string;
-  };
-}
-
 class OrganizationApiClient {
   private baseUrl = '/organization/api/v1';
 
@@ -380,55 +309,6 @@ class OrganizationApiClient {
       apiClient.setUseBaseUrl2(true);
       
       await apiClient.delete(`${this.baseUrl}/organizations/${id}`);
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  // New member management methods
-  async getOrganizationMembers(organizationId: string): Promise<OrganizationMembersResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.get<OrganizationMembersResponse>(`${this.baseUrl}/organizations/${organizationId}/management/members`);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async assignRole(organizationId: string, data: AssignRoleData): Promise<AssignRoleResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.post<AssignRoleResponse>(`${this.baseUrl}/organizations/${organizationId}/management/assign-role`, data);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async assignInstitute(organizationId: string, data: AssignInstituteData): Promise<AssignInstituteResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.put<AssignInstituteResponse>(`${this.baseUrl}/organizations/${organizationId}/assign-institute`, data);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async enrollOrganization(data: EnrollOrganizationData): Promise<EnrollOrganizationResponse> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.post<EnrollOrganizationResponse>(`${this.baseUrl}/organizations/enroll`, data);
-      return response;
     } finally {
       apiClient.setUseBaseUrl2(false);
     }

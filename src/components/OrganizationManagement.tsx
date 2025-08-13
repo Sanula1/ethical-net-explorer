@@ -1,17 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Building2, Search, Filter, Eye, EyeOff, Users, BookOpen, Plus, Settings } from 'lucide-react';
-import { organizationApi, Organization, OrganizationQueryParams, AssignInstituteData } from '@/api/organization.api';
+import { Building2, Search, Filter, Eye, EyeOff, Users, BookOpen, Plus } from 'lucide-react';
+import { organizationApi, Organization, OrganizationQueryParams } from '@/api/organization.api';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OrganizationDetails from './OrganizationDetails';
 import CreateOrganizationForm from './forms/CreateOrganizationForm';
-import OrganizationEnrollment from './OrganizationEnrollment';
 
 interface OrganizationManagementProps {
   userRole: string;
@@ -29,16 +26,7 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
   const [totalPages, setTotalPages] = useState(1);
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showAssignDialog, setShowAssignDialog] = useState(false);
-  const [assigningOrganization, setAssigningOrganization] = useState<Organization | null>(null);
-  const [selectedInstituteId, setSelectedInstituteId] = useState('');
-  const [assigning, setAssigning] = useState(false);
   const { toast } = useToast();
-
-  // Show enrollment component for non-OrganizationManager roles
-  if (userRole !== 'OrganizationManager') {
-    return <OrganizationEnrollment userRole={userRole} />;
-  }
 
   const fetchOrganizations = async () => {
     try {
@@ -91,52 +79,6 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
 
   const handleCreateCancel = () => {
     setShowCreateForm(false);
-  };
-
-  const handleAssignInstitute = (organization: Organization) => {
-    setAssigningOrganization(organization);
-    setShowAssignDialog(true);
-  };
-
-  const submitAssignInstitute = async () => {
-    if (!assigningOrganization || !selectedInstituteId) {
-      toast({
-        title: "Error",
-        description: "Please select an institute",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setAssigning(true);
-      
-      const assignData: AssignInstituteData = {
-        instituteId: selectedInstituteId
-      };
-
-      await organizationApi.assignInstitute(assigningOrganization.organizationId, assignData);
-      
-      toast({
-        title: "Success",
-        description: "Organization successfully assigned to institute",
-      });
-
-      // Reset and refresh
-      setShowAssignDialog(false);
-      setAssigningOrganization(null);
-      setSelectedInstituteId('');
-      fetchOrganizations();
-    } catch (error) {
-      console.error('Error assigning institute:', error);
-      toast({
-        title: "Error",
-        description: "Failed to assign organization to institute",
-        variant: "destructive",
-      });
-    } finally {
-      setAssigning(false);
-    }
   };
 
   useEffect(() => {
@@ -351,24 +293,12 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
                   </div>
                 )}
                 
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={() => handleSelectOrganization(organization)}
-                    className="flex-1"
-                  >
-                    Select Organization
-                  </Button>
-                  
-                  {userRole === 'OrganizationManager' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAssignInstitute(organization)}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                <Button 
+                  onClick={() => handleSelectOrganization(organization)}
+                  className="w-full"
+                >
+                  Select Organization
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -399,45 +329,6 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
           </Button>
         </div>
       )}
-
-      {/* Assign Institute Dialog */}
-      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign Institute to {assigningOrganization?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Institute ID</label>
-              <Input
-                placeholder="Enter institute ID..."
-                value={selectedInstituteId}
-                onChange={(e) => setSelectedInstituteId(e.target.value)}
-              />
-              <p className="text-xs text-gray-600">
-                Enter the ID of the institute to assign this organization to.
-              </p>
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                onClick={submitAssignInstitute}
-                disabled={assigning || !selectedInstituteId}
-                className="flex-1"
-              >
-                {assigning ? 'Assigning...' : 'Assign Institute'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowAssignDialog(false)}
-                disabled={assigning}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {organizations.length === 0 && !loading && (
         <Card>
