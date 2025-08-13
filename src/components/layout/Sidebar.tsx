@@ -48,17 +48,21 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         icon: LayoutDashboard,
         permission: 'view-dashboard',
         alwaysShow: false
-      },
-      {
+      }
+    ];
+
+    // Only show organizations for non-OrganizationManager users
+    if (user?.role !== 'OrganizationManager') {
+      baseItems.push({
         id: 'organizations',
         label: 'Organizations',
         icon: Building2,
         permission: 'view-organizations',
-        alwaysShow: true // Always show organizations for all users
-      }
-    ];
+        alwaysShow: true // Always show organizations for all users except OrganizationManager
+      });
+    }
 
-    // If no institute is selected, return basic navigation including organizations
+    // If no institute is selected, return basic navigation
     if (!selectedInstitute) {
       return baseItems;
     }
