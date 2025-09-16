@@ -70,6 +70,12 @@ const InstitutePayments = () => {
     tableData.actions.updateFilters({ search: value });
   };
 
+  // Force refresh data from API
+  const handleForceRefresh = () => {
+    console.log('Force refreshing payments data...');
+    tableData.actions.refresh();
+  };
+
   const handleSubmitPayment = (payment: InstitutePayment) => {
     setSelectedPayment(payment);
     setSubmitDialogOpen(true);
@@ -106,9 +112,13 @@ const InstitutePayments = () => {
       label: 'Amount',
       minWidth: 120,
       align: 'right' as const,
-      format: (value: number) => (
-        <div className="font-semibold text-lg text-primary">Rs {value.toLocaleString()}</div>
-      )
+      format: (value: number) => {
+        console.log('Amount column format - value:', value, 'type:', typeof value);
+        const numericValue = Number(value) || 0;
+        return (
+          <div className="font-semibold text-lg text-primary">Rs {numericValue.toLocaleString()}</div>
+        );
+      }
     },
     {
       id: 'dueDate',
@@ -174,7 +184,22 @@ const InstitutePayments = () => {
       }
     ] : [])
   ], [isInstituteAdmin]);
-  return (
+  const renderComponent = () => {
+    // Debug logging for table data
+    console.log('InstitutePayments Debug - Table data:', {
+      loading: tableData.state.loading,
+      error: tableData.state.error,
+      dataLength: Array.isArray(tableData.state.data) ? tableData.state.data.length : 0,
+      firstItem: Array.isArray(tableData.state.data) && tableData.state.data[0],
+      amountValues: Array.isArray(tableData.state.data) ? tableData.state.data.map(item => ({ 
+        id: item.id, 
+        paymentType: item.paymentType, 
+        amount: item.amount, 
+        typeof_amount: typeof item.amount 
+      })) : []
+    });
+
+    return (
     <AppLayout>
       <PageContainer className="h-full">
         {/* Header Section */}
@@ -252,12 +277,12 @@ const InstitutePayments = () => {
               <div className="flex gap-2 shrink-0">
                 <Button 
                   variant="outline"
-                  onClick={() => tableData.actions.refresh()} 
+                  onClick={handleForceRefresh} 
                   disabled={tableData.state.loading}
                   size="sm"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${tableData.state.loading ? 'animate-spin' : ''}`} />
-                  {tableData.state.loading ? 'Refreshing...' : 'Refresh'}
+                  {tableData.state.loading ? 'Refreshing...' : 'Force Refresh'}
                 </Button>
                 <Button variant="outline" size="sm">
                   <Download className="h-4 w-4 mr-2" />
@@ -429,6 +454,9 @@ const InstitutePayments = () => {
         )}
       </PageContainer>
     </AppLayout>
-  );
+    );
+  };
+
+  return renderComponent();
 };
 export default InstitutePayments;
