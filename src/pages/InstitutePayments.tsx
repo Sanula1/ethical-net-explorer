@@ -107,7 +107,7 @@ const InstitutePayments = () => {
       minWidth: 120,
       align: 'right' as const,
       format: (value: number) => (
-        <div className="font-semibold text-lg text-primary">₹{value.toLocaleString()}</div>
+        <div className="font-semibold text-lg text-primary">Rs {value.toLocaleString()}</div>
       )
     },
     {
@@ -362,7 +362,7 @@ const InstitutePayments = () => {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-foreground">
-                ₹{Array.isArray(tableData.state.data) ? tableData.state.data.filter(p => p.status === 'ACTIVE').reduce((sum, p) => sum + p.amount, 0).toLocaleString() : '0'}
+                Rs {Array.isArray(tableData.state.data) ? tableData.state.data.filter(p => p.status === 'ACTIVE').reduce((sum, p) => sum + p.amount, 0).toLocaleString() : '0'}
               </p>
             </CardContent>
           </Card>

@@ -7,7 +7,7 @@ export interface InstitutePayment {
   description: string;
   amount: number;
   dueDate: string;
-  targetType: 'PARENTS' | 'STUDENT';
+  targetType: 'PARENTS' | 'STUDENT' | 'BOTH';
   priority: 'MANDATORY' | 'OPTIONAL';
   status: 'ACTIVE' | 'INACTIVE';
   paymentInstructions?: string;
@@ -187,7 +187,7 @@ class InstitutePaymentsApi {
     search?: string;
     status?: 'ACTIVE' | 'INACTIVE';
     priority?: 'MANDATORY' | 'OPTIONAL';
-    targetType?: 'PARENTS' | 'STUDENT';
+    targetType?: 'PARENTS' | 'STUDENT' | 'BOTH';
   }): Promise<InstitutePaymentsResponse> {
     return apiClient.get(`/institute-payments/institute/${instituteId}/payments`, params);
   }
