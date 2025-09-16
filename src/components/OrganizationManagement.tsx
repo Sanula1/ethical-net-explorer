@@ -3,12 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Building2, Search, Filter, Eye, EyeOff, Users, BookOpen, Plus } from 'lucide-react';
+import { Building2, Search, Filter, Eye, EyeOff, Users, BookOpen, Plus, UserPlus, LayoutGrid, List } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { organizationApi, Organization, OrganizationQueryParams } from '@/api/organization.api';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import OrganizationDetails from './OrganizationDetails';
 import CreateOrganizationForm from './forms/CreateOrganizationForm';
+import EnrollOrganizationDialog from './EnrollOrganizationDialog';
+import OrganizationCard from './OrganizationCard';
 
 interface OrganizationManagementProps {
   userRole: string;
@@ -26,6 +29,15 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
   const [totalPages, setTotalPages] = useState(1);
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showEnrollmentView, setShowEnrollmentView] = useState(false);
+  const [enrollmentOrganizations, setEnrollmentOrganizations] = useState<Organization[]>([]);
+  const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+  const [enrollmentViewMode, setEnrollmentViewMode] = useState<'card' | 'table'>('card');
+  const [enrollmentSearchTerm, setEnrollmentSearchTerm] = useState('');
+  const [enrollmentCurrentPage, setEnrollmentCurrentPage] = useState(1);
+  const [enrollmentTotalPages, setEnrollmentTotalPages] = useState(1);
+  const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
+  const [selectedEnrollOrganization, setSelectedEnrollOrganization] = useState<Organization | null>(null);
   const { toast } = useToast();
 
   const fetchOrganizations = async () => {
@@ -106,6 +118,87 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
     setSelectedOrganization(null);
   };
 
+  const canEnrollInOrganizations = () => {
+    return ['Student', 'Teacher', 'InstituteAdmin'].includes(userRole);
+  };
+
+  const fetchEnrollmentOrganizations = async () => {
+    try {
+      setEnrollmentLoading(true);
+      
+      const params: OrganizationQueryParams = {
+        page: enrollmentCurrentPage,
+        limit: 10,
+        ...(enrollmentSearchTerm && { search: enrollmentSearchTerm })
+      };
+
+      const response = await organizationApi.getOrganizations(params);
+      setEnrollmentOrganizations(response.data);
+      setEnrollmentTotalPages(response.pagination.totalPages);
+    } catch (error) {
+      console.error('Error fetching enrollment organizations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load organizations for enrollment",
+        variant: "destructive",
+      });
+    } finally {
+      setEnrollmentLoading(false);
+    }
+  };
+
+  const handleEnrollOrganization = (organization: Organization) => {
+    setSelectedEnrollOrganization(organization);
+    setEnrollDialogOpen(true);
+  };
+
+  const handleEnrollmentSuccess = () => {
+    fetchEnrollmentOrganizations(); // Refresh the list
+  };
+
+  const handleDeleteOrganization = async (organization: Organization) => {
+    if (!window.confirm(`Are you sure you want to delete "${organization.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await organizationApi.deleteOrganization(organization.organizationId);
+      toast({
+        title: "Success",
+        description: "Organization deleted successfully",
+      });
+      fetchOrganizations(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting organization:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete organization",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const canDeleteOrganization = (organization: Organization) => {
+    return organization.userRole === 'PRESIDENT' || userRole === 'OrganizationManager';
+  };
+
+  const handleShowEnrollment = () => {
+    setShowEnrollmentView(true);
+    fetchEnrollmentOrganizations();
+  };
+
+  const handleBackFromEnrollment = () => {
+    setShowEnrollmentView(false);
+    setEnrollmentSearchTerm('');
+    setEnrollmentCurrentPage(1);
+  };
+
+  useEffect(() => {
+    if (showEnrollmentView) {
+      fetchEnrollmentOrganizations();
+    }
+  }, [enrollmentCurrentPage, enrollmentSearchTerm, showEnrollmentView]);
+
   if (showCreateForm) {
     return (
       <CreateOrganizationForm
@@ -157,21 +250,210 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
 
   const headerInfo = getHeaderInfo();
 
+  // Enrollment View Component
+  if (showEnrollmentView) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Enroll in Organizations</h2>
+            <p className="text-gray-600 dark:text-gray-400">
+              Browse and enroll in available organizations
+            </p>
+          </div>
+          <Button onClick={handleBackFromEnrollment} variant="outline">
+            Back to Organizations
+          </Button>
+        </div>
+
+        {/* Search and View Mode */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search organizations..."
+                value={enrollmentSearchTerm}
+                onChange={(e) => setEnrollmentSearchTerm(e.target.value)}
+                className="pl-10 w-80"
+              />
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant={enrollmentViewMode === 'card' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setEnrollmentViewMode('card')}
+            >
+              <LayoutGrid className="h-4 w-4 mr-1" />
+              Cards
+            </Button>
+            <Button
+              variant={enrollmentViewMode === 'table' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setEnrollmentViewMode('table')}
+            >
+              <List className="h-4 w-4 mr-1" />
+              Table
+            </Button>
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {enrollmentLoading && (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+          </div>
+        )}
+
+        {/* Content */}
+        {!enrollmentLoading && (
+          <>
+            {enrollmentViewMode === 'card' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
+                {enrollmentOrganizations.map((organization) => (
+                  <OrganizationCard
+                    key={organization.organizationId}
+                    organization={organization}
+                    onSelect={handleEnrollOrganization}
+                    buttonText="Enroll"
+                    buttonIcon={<UserPlus className="h-4 w-4" />}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Available Organizations</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Visibility</TableHead>
+                        <TableHead>Institute ID</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {enrollmentOrganizations.map((organization) => (
+                        <TableRow key={organization.organizationId}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium">{organization.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{organization.type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={organization.isPublic ? "default" : "secondary"}>
+                              {organization.isPublic ? 'Public' : 'Private'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {organization.instituteId || '-'}
+                          </TableCell>
+                          <TableCell>
+                          <Button 
+                            onClick={() => handleEnrollOrganization(organization)}
+                            size="sm"
+                          >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Enroll
+                          </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Pagination */}
+            {enrollmentTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEnrollmentCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={enrollmentCurrentPage === 1}
+                >
+                  Previous
+                </Button>
+                
+                <span className="text-sm text-gray-600">
+                  Page {enrollmentCurrentPage} of {enrollmentTotalPages}
+                </span>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setEnrollmentCurrentPage(prev => Math.min(prev + 1, enrollmentTotalPages))}
+                  disabled={enrollmentCurrentPage === enrollmentTotalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+
+            {enrollmentOrganizations.length === 0 && !enrollmentLoading && (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <Building2 className="h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Organizations Found</h3>
+                  <p className="text-gray-600 dark:text-gray-400 text-center">
+                    {enrollmentSearchTerm
+                      ? 'No organizations match your search term.'
+                      : 'No organizations available for enrollment.'}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Enrollment Dialog */}
+        {selectedEnrollOrganization && (
+          <EnrollOrganizationDialog
+            open={enrollDialogOpen}
+            onOpenChange={setEnrollDialogOpen}
+            organizationId={selectedEnrollOrganization.organizationId}
+            organizationName={selectedEnrollOrganization.name}
+            organizationType={selectedEnrollOrganization.type}
+            onEnrollmentSuccess={handleEnrollmentSuccess}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{headerInfo.title}</h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{headerInfo.title}</h2>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             {headerInfo.description}
           </p>
         </div>
-        {userRole === 'OrganizationManager' && (
-          <Button onClick={handleCreateOrganization} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Create Organization
-          </Button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-2">
+          {canEnrollInOrganizations() && (
+            <Button onClick={handleShowEnrollment} className="flex items-center gap-2 w-full sm:w-auto">
+              <UserPlus className="h-4 w-4" />
+              Enroll Organization
+            </Button>
+          )}
+          {userRole === 'OrganizationManager' && (
+            <Button onClick={handleCreateOrganization} className="flex items-center gap-2 w-full sm:w-auto">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Create Organization</span>
+              <span className="sm:hidden">Create</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -243,65 +525,15 @@ const OrganizationManagement = ({ userRole, userPermissions, currentInstituteId 
       </Card>
 
       {/* Organizations Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
         {organizations.map((organization) => (
-          <Card key={organization.organizationId} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-6 w-6 text-blue-600" />
-                  <div>
-                    <CardTitle className="text-lg">{organization.name}</CardTitle>
-                    <CardDescription className="capitalize">
-                      {organization.type.toLowerCase()} Organization
-                    </CardDescription>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Badge variant={organization.isPublic ? "default" : "secondary"}>
-                    {organization.isPublic ? (
-                      <><Eye className="h-3 w-3 mr-1" /> Public</>
-                    ) : (
-                      <><EyeOff className="h-3 w-3 mr-1" /> Private</>
-                    )}
-                  </Badge>
-                  
-                  {organization.type === 'INSTITUTE' && (
-                    <Badge variant="outline">
-                      <Building2 className="h-3 w-3 mr-1" />
-                      Institute
-                    </Badge>
-                  )}
-                </div>
-                
-                {organization.memberCount !== undefined && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="h-4 w-4 mr-1" />
-                    {organization.memberCount} members
-                  </div>
-                )}
-                
-                {organization.causeCount !== undefined && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <BookOpen className="h-4 w-4 mr-1" />
-                    {organization.causeCount} courses
-                  </div>
-                )}
-                
-                <Button 
-                  onClick={() => handleSelectOrganization(organization)}
-                  className="w-full"
-                >
-                  Select Organization
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <OrganizationCard
+            key={organization.organizationId}
+            organization={organization}
+            onSelect={handleSelectOrganization}
+            onDelete={handleDeleteOrganization}
+            showDeleteButton={canDeleteOrganization(organization)}
+          />
         ))}
       </div>
 

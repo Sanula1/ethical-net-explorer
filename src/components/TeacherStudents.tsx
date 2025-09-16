@@ -1,61 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { RefreshCw, Users, Mail, Phone, Search, Filter } from 'lucide-react';
+import { RefreshCw, Users, Mail, Phone, Search, Filter, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getBaseUrl } from '@/contexts/utils/auth.api';
 import { DataCardView } from '@/components/ui/data-card-view';
 import DataTable from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AssignStudentsDialog from '@/components/forms/AssignStudentsDialog';
 
-interface ClassStudent {
-  ics_student_user_id: string;
-  ics_is_active: number;
-  ics_created_at: string;
-  s_student_id: string | null;
-  u_first_name: string;
-  u_last_name: string;
-  u_email: string;
-  u_phone_number: string;
+interface ClassSubjectStudent {
+  id: string;
+  name: string;
+  email?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  phoneNumber?: string;
+  imageUrl?: string;
+  dateOfBirth?: string;
+  userIdByInstitute?: string | null;
+  fatherId?: string;
+  motherId?: string;
+  guardianId?: string;
 }
 
-interface SubjectStudent {
-  instituteId: string;
-  classId: string;
-  subjectId: string;
-  studentId: string;
-  student: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phoneNumber: string;
-    userType: string;
-    dateOfBirth: string;
-    gender: string;
-    imageUrl: string | null;
-    isActive: boolean;
-  };
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface SubjectStudentsResponse {
-  data: SubjectStudent[];
+interface ClassSubjectStudentsResponse {
+  data: ClassSubjectStudent[];
   meta: {
+    total: number;
     page: number;
     limit: number;
-    total: number;
     totalPages: number;
-    hasPreviousPage: boolean;
-    hasNextPage: boolean;
-    previousPage: number | null;
-    nextPage: number | null;
   };
 }
 
@@ -63,21 +41,21 @@ const TeacherStudents = () => {
   const { user, selectedInstitute, selectedClass, selectedSubject } = useAuth();
   const { toast } = useToast();
   
-  const [students, setStudents] = useState<ClassStudent[] | SubjectStudent[]>([]);
+  const [students, setStudents] = useState<ClassSubjectStudent[]>([]);
   const [loading, setLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
 
-  // Role check - only teachers can access this component
-  if (user?.role !== 'Teacher') {
+  // Role check - only InstituteAdmin and Teacher can access this component
+  if (!user || !['InstituteAdmin', 'Teacher'].includes(user.role)) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-600 dark:text-gray-400">
-          Access denied. This section is only available for teachers.
+          Access denied. This section is only available for teachers and institute admins.
         </p>
       </div>
     );
@@ -100,18 +78,18 @@ const TeacherStudents = () => {
     setLoading(true);
     try {
       const response = await fetch(
-        `${getBaseUrl()}/institutes/${selectedInstitute.id}/classes/${selectedClass.id}/students`,
+        `${getBaseUrl()}/institute-users/institute/${selectedInstitute.id}/users/STUDENT/class/${selectedClass.id}`,
         { headers: getApiHeaders() }
       );
       
       if (response.ok) {
-        const data: ClassStudent[] = await response.json();
-        setStudents(data);
+        const data: ClassSubjectStudentsResponse = await response.json();
+        setStudents(data.data);
         setDataLoaded(true);
         
         toast({
-          title: "Students Loaded",
-          description: `Successfully loaded ${data.length} students.`
+          title: "Class Students Loaded",
+          description: `Successfully loaded ${data.data.length} students.`
         });
       } else {
         throw new Error('Failed to fetch class students');
@@ -135,27 +113,18 @@ const TeacherStudents = () => {
 
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        instituteId: selectedInstitute.id,
-        classId: selectedClass.id,
-        subjectId: selectedSubject.id,
-        studentId: '',
-        page: '1',
-        limit: '10'
-      });
-
       const response = await fetch(
-        `${getBaseUrl()}/institute-class-subject-students?${params}`,
+        `${getBaseUrl()}/institute-users/institute/${selectedInstitute.id}/users/STUDENT/class/${selectedClass.id}/subject/${selectedSubject.id}`,
         { headers: getApiHeaders() }
       );
       
       if (response.ok) {
-        const data: SubjectStudentsResponse = await response.json();
+        const data: ClassSubjectStudentsResponse = await response.json();
         setStudents(data.data);
         setDataLoaded(true);
         
         toast({
-          title: "Students Loaded",
+          title: "Subject Students Loaded",
           description: `Successfully loaded ${data.data.length} students.`
         });
       } else {
@@ -173,118 +142,111 @@ const TeacherStudents = () => {
     }
   };
 
-  useEffect(() => {
-    if (selectedInstitute?.id && selectedClass?.id) {
-      if (selectedSubject?.id) {
-        fetchSubjectStudents();
-      } else {
-        fetchClassStudents();
-      }
-    }
-  }, [selectedInstitute, selectedClass, selectedSubject]);
-
-  const isClassStudent = (student: ClassStudent | SubjectStudent): student is ClassStudent => {
-    return 'u_first_name' in student;
-  };
-
-  const getStudentName = (student: ClassStudent | SubjectStudent) => {
-    if (isClassStudent(student)) {
-      return `${student.u_first_name} ${student.u_last_name}`;
-    }
-    return `${student.student.firstName} ${student.student.lastName}`;
-  };
-
-  const getStudentEmail = (student: ClassStudent | SubjectStudent) => {
-    if (isClassStudent(student)) {
-      return student.u_email;
-    }
-    return student.student.email;
-  };
-
-  const getStudentPhone = (student: ClassStudent | SubjectStudent) => {
-    if (isClassStudent(student)) {
-      return student.u_phone_number;
-    }
-    return student.student.phoneNumber;
-  };
-
-  const getStudentImage = (student: ClassStudent | SubjectStudent) => {
-    if (isClassStudent(student)) {
-      return null; // Class students don't have image in the response
-    }
-    return student.student.imageUrl;
-  };
-
-  const getStudentStatus = (student: ClassStudent | SubjectStudent) => {
-    if (isClassStudent(student)) {
-      return student.ics_is_active === 1;
-    }
-    return student.isActive;
-  };
-
   const studentColumns = [
     {
-      key: 'name',
+      key: 'student',
       header: 'Student',
-      render: (value: any, row: ClassStudent | SubjectStudent) => (
+      render: (value: any, row: ClassSubjectStudent) => (
         <div className="flex items-center space-x-3">
           <Avatar className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
-            <AvatarImage src={getStudentImage(row) || ''} alt={getStudentName(row)} />
+            <AvatarImage src={row.imageUrl || ''} alt={row.name} />
             <AvatarFallback className="text-xs">
-              {getStudentName(row).split(' ').map(n => n.charAt(0)).join('')}
+              {row.name.split(' ').map(n => n.charAt(0)).join('')}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="font-medium truncate">{getStudentName(row)}</p>
-            <p className="text-sm text-gray-500 truncate">{getStudentEmail(row)}</p>
+            <p className="font-medium truncate">{row.name}</p>
+            <p className="text-sm text-muted-foreground truncate">ID: {row.userIdByInstitute || row.id}</p>
           </div>
         </div>
       )
     },
     {
       key: 'contact',
-      header: 'Contact',
-      render: (value: any, row: ClassStudent | SubjectStudent) => (
+      header: 'Contact Information',
+      render: (value: any, row: ClassSubjectStudent) => (
         <div className="space-y-1">
           <div className="flex items-center text-sm">
-            <Phone className="h-3 w-3 mr-1 flex-shrink-0" />
-            <span className="truncate">{getStudentPhone(row)}</span>
+            <Mail className="h-3 w-3 mr-1 flex-shrink-0" />
+            <span className="truncate">{row.email || 'N/A'}</span>
           </div>
           <div className="flex items-center text-sm">
-            <Mail className="h-3 w-3 mr-1 flex-shrink-0" />
-            <span className="truncate">{getStudentEmail(row)}</span>
+            <Phone className="h-3 w-3 mr-1 flex-shrink-0" />
+            <span className="truncate">{row.phoneNumber || 'N/A'}</span>
           </div>
         </div>
       )
     },
     {
-      key: 'status',
-      header: 'Status',
-      render: (value: any, row: ClassStudent | SubjectStudent) => (
-        <Badge variant={getStudentStatus(row) ? 'default' : 'secondary'}>
-          {getStudentStatus(row) ? 'Active' : 'Inactive'}
-        </Badge>
+      key: 'address',
+      header: 'Address',
+      render: (value: any, row: ClassSubjectStudent) => (
+        <div className="space-y-1 text-sm">
+          <p className="truncate">{row.addressLine1 || 'N/A'}</p>
+          {row.addressLine2 && (
+            <p className="text-muted-foreground truncate">{row.addressLine2}</p>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'dateOfBirth',
+      header: 'Date of Birth',
+      render: (value: any, row: ClassSubjectStudent) => (
+        <div className="text-sm">
+          {row.dateOfBirth 
+            ? new Date(row.dateOfBirth).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              })
+            : 'N/A'
+          }
+        </div>
+      )
+    },
+    {
+      key: 'guardians',
+      header: 'Parent/Guardian',
+      render: (value: any, row: ClassSubjectStudent) => (
+        <div className="space-y-1">
+          {row.fatherId && (
+            <Badge variant="outline" className="text-xs">
+              Father: {row.fatherId}
+            </Badge>
+          )}
+          {row.motherId && (
+            <Badge variant="outline" className="text-xs">
+              Mother: {row.motherId}
+            </Badge>
+          )}
+          {row.guardianId && (
+            <Badge variant="outline" className="text-xs">
+              Guardian: {row.guardianId}
+            </Badge>
+          )}
+          {!row.fatherId && !row.motherId && !row.guardianId && (
+            <span className="text-sm text-muted-foreground">N/A</span>
+          )}
+        </div>
       )
     }
   ];
 
   const filteredStudents = students.filter(student => {
-    const name = getStudentName(student).toLowerCase();
-    const email = getStudentEmail(student).toLowerCase();
+    const name = student.name.toLowerCase();
+    const email = (student.email || '').toLowerCase();
     const matchesSearch = !searchTerm || name.includes(searchTerm.toLowerCase()) || email.includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && getStudentStatus(student)) || 
-      (statusFilter === 'inactive' && !getStudentStatus(student));
     
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const getTitle = () => {
     if (selectedSubject) {
-      return `Subject Students - ${selectedSubject.name}`;
+      return `Students - ${selectedSubject.name}`;
     }
     if (selectedClass) {
-      return `Class Students - ${selectedClass.name}`;
+      return `Students`;
     }
     return 'Students';
   };
@@ -297,6 +259,17 @@ const TeacherStudents = () => {
     return parts.join(' → ');
   };
 
+  const getLoadFunction = () => {
+    return selectedSubject ? fetchSubjectStudents : fetchClassStudents;
+  };
+
+  const getLoadButtonText = () => {
+    if (selectedSubject) {
+      return loading ? 'Loading Subject Students...' : 'Load My Subject Students';
+    }
+    return loading ? 'Loading Class Students...' : 'Load My Class Students';
+  };
+
   if (!selectedInstitute || !selectedClass) {
     return (
       <div className="container mx-auto p-6 space-y-6">
@@ -306,7 +279,7 @@ const TeacherStudents = () => {
             Select Class
           </h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Please select an institute and class to view students.
+            Please select an institute and class to view your students.
           </p>
         </div>
       </div>
@@ -325,22 +298,22 @@ const TeacherStudents = () => {
             Current Selection: {getCurrentSelection()}
           </p>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Click the button below to load students
+            Click the button below to load your students
           </p>
           <Button 
-            onClick={selectedSubject ? fetchSubjectStudents : fetchClassStudents} 
+            onClick={getLoadFunction()} 
             disabled={loading}
             className="bg-blue-600 hover:bg-blue-700"
           >
             {loading ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Loading Students...
+                {getLoadButtonText()}
               </>
             ) : (
               <>
                 <Users className="h-4 w-4 mr-2" />
-                Load Students
+                {getLoadButtonText()}
               </>
             )}
           </Button>
@@ -366,6 +339,13 @@ const TeacherStudents = () => {
             {students.length} Students
           </Badge>
           <Button
+            onClick={() => setShowAssignDialog(true)}
+            className="flex items-center gap-2"
+          >
+            <UserPlus className="h-4 w-4" />
+            Assign Students
+          </Button>
+          <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2"
@@ -374,7 +354,7 @@ const TeacherStudents = () => {
             Filters
           </Button>
           <Button 
-            onClick={selectedSubject ? fetchSubjectStudents : fetchClassStudents} 
+            onClick={getLoadFunction()} 
             disabled={loading}
             variant="outline"
             size="sm"
@@ -414,21 +394,10 @@ const TeacherStudents = () => {
                   className="pl-10"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
               <Button
                 variant="outline"
                 onClick={() => {
                   setSearchTerm('');
-                  setStatusFilter('all');
                 }}
                 className="w-full"
               >
@@ -447,7 +416,7 @@ const TeacherStudents = () => {
               No Students Found
             </h3>
             <p className="text-gray-600 dark:text-gray-400">
-              {searchTerm || statusFilter !== 'all' 
+              {searchTerm 
                 ? 'No students match your current filters.' 
                 : 'No students are enrolled in this selection.'}
             </p>
@@ -479,6 +448,15 @@ const TeacherStudents = () => {
           </div>
         </>
       )}
+
+      {/* Assign Students Dialog */}
+      <AssignStudentsDialog
+        open={showAssignDialog}
+        onOpenChange={setShowAssignDialog}
+        onAssignmentComplete={() => {
+          getLoadFunction()(); // Refresh the list
+        }}
+      />
     </div>
   );
 };

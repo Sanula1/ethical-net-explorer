@@ -1,27 +1,59 @@
+
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Plus, RefreshCw, Users, Search, Filter, UserPlus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { DataCardView } from '@/components/ui/data-card-view';
+import MUITable from '@/components/ui/mui-table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import DataTable from '@/components/ui/data-table';
-import { Eye, User, Phone, Mail, MapPin, BookOpen, Search, Filter, RefreshCw, Users, FileText } from 'lucide-react';
 import CreateStudentForm from '@/components/forms/CreateStudentForm';
-import AssignParentForm from '@/components/forms/AssignParentForm';
-import { getBaseUrl, getApiHeaders } from '@/contexts/utils/auth.api';
-import { DataCardView } from '@/components/ui/data-card-view';
+import AssignStudentsDialog from '@/components/forms/AssignStudentsDialog';
+import AssignSubjectStudentsDialog from '@/components/forms/AssignSubjectStudentsDialog';
+import { cachedApiClient } from '@/api/cachedClient';
+import { useApiRequest } from '@/hooks/useApiRequest';
+import { useTableData } from '@/hooks/useTableData';
+import { getBaseUrl } from '@/contexts/utils/auth.api';
+
+interface InstituteStudent {
+  id: string;
+  name: string;
+  email?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  phoneNumber?: string;
+  imageUrl?: string;
+  dateOfBirth?: string;
+  userIdByInstitute?: string | null;
+  fatherId?: string | null;
+  motherId?: string | null;
+  guardianId?: string | null;
+}
+
+interface InstituteStudentsResponse {
+  data: InstituteStudent[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
 
 interface Student {
   userId: string;
+  fatherId: string | null;
+  motherId: string | null;
+  guardianId: string | null;
   studentId: string;
-  grade: string;
-  bloodGroup: string;
   emergencyContact: string;
-  medicalConditions: string;
-  allergies: string;
+  medicalConditions?: string;
+  allergies?: string;
+  bloodGroup?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -30,11 +62,14 @@ interface Student {
     firstName: string;
     lastName: string;
     email: string;
-    phone: string;
+    phoneNumber: string;
     userType: string;
     dateOfBirth: string;
     gender: string;
-    imageUrl: string | null;
+    imageUrl?: string;
+    isActive: boolean;
+    subscriptionPlan: string;
+    createdAt: string;
   };
 }
 
@@ -53,64 +88,132 @@ interface StudentsResponse {
 }
 
 const Students = () => {
+  const { toast } = useToast();
+  const { user, selectedInstitute, selectedClass, selectedSubject } = useAuth();
+  
+  // State for both types of student data
   const [students, setStudents] = useState<Student[]>([]);
+  const [instituteStudents, setInstituteStudents] = useState<InstituteStudent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showViewDialog, setShowViewDialog] = useState(false);
-  const [showAssignParentDialog, setShowAssignParentDialog] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  // Filter states
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [showSubjectAssignDialog, setShowSubjectAssignDialog] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  
+  // Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [gradeFilter, setGradeFilter] = useState('all');
-  const [genderFilter, setGenderFilter] = useState('all');
-  const { toast } = useToast();
 
-  const fetchStudents = async () => {
+  // Enhanced pagination with useTableData hook
+  const {
+    state: { data: paginatedStudents, loading: tableLoading },
+    pagination,
+    actions: { refresh: refreshTableData, updateFilters, setPage, setLimit },
+    filters
+  } = useTableData<Student>({
+    endpoint: '/students',
+    defaultParams: {},
+    dependencies: [],
+    pagination: {
+      defaultLimit: 50,
+      availableLimits: [25, 50, 100]
+    }
+  });
+
+  // Check if user should use new institute-based API
+  const shouldUseInstituteApi = () => {
+    return user && (user.role === 'InstituteAdmin' || user.role === 'Teacher') && selectedInstitute;
+  };
+
+  const getApiHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'ngrok-skip-browser-warning': 'true'
+    };
+  };
+
+  // Use API request hook for creating students with duplicate prevention
+  const createStudentRequest = useApiRequest(
+    async (studentData: any) => {
+      console.log('Creating student with data:', studentData);
+      const response = await cachedApiClient.post('/students', studentData);
+      return response;
+    },
+    { preventDuplicates: true, showLoading: false }
+  );
+
+  // Use API request hook for fetching students (original API)
+  const fetchStudentsRequest = useApiRequest(
+    async (page: number) => {
+      console.log(`Fetching students with params: page=${page}&limit=${pagination.limit}`);
+      const response = await cachedApiClient.get<StudentsResponse>(
+        '/students',
+        { page: page.toString(), limit: pagination.limit.toString() },
+        { ttl: 15, useStaleWhileRevalidate: true }
+      );
+      return response;
+    },
+    { preventDuplicates: true }
+  );
+
+  // Original fetch function for Student users
+  const fetchStudents = async (page = 1) => {
     try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString()
-      });
-      if (statusFilter !== 'all') {
-        params.append('isActive', statusFilter);
-      }
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
-      }
-      if (gradeFilter !== 'all') {
-        params.append('grade', gradeFilter);
-      }
-      if (genderFilter !== 'all') {
-        params.append('gender', genderFilter);
-      }
-      console.log('Fetching students with params:', params.toString());
-      const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/students?${params}`, {
-        headers: getApiHeaders()
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data: StudentsResponse = await response.json();
+      const data = await fetchStudentsRequest.execute(page);
       console.log('Students data received:', data);
+      
       setStudents(data.data);
-      setTotalPages(data.meta.totalPages);
-      setTotalItems(data.meta.total);
+      // Note: pagination is managed by the hook automatically
       setDataLoaded(true);
+      
+      toast({
+        title: "Students Loaded",
+        description: `Successfully loaded ${data.data.length} students.`
+      });
     } catch (error) {
       console.error('Error fetching students:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch students data",
+        description: "Failed to load students",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // New fetch function for institute-based students (class only)
+  const fetchInstituteClassStudents = async () => {
+    if (!selectedInstitute?.id || !selectedClass?.id) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${getBaseUrl()}/institute-users/institute/${selectedInstitute.id}/users/STUDENT/class/${selectedClass.id}`,
+        { headers: getApiHeaders() }
+      );
+      
+      if (response.ok) {
+        const data: InstituteStudentsResponse = await response.json();
+        setInstituteStudents(data.data);
+        const totalStudents = data.meta.total;
+        const currentPage = data.meta.page;
+        const totalPages = data.meta.totalPages;
+        setDataLoaded(true);
+        
+        toast({
+          title: "Class Students Loaded",
+          description: `Successfully loaded ${data.data.length} students.`
+        });
+      } else {
+        throw new Error('Failed to fetch class students');
+      }
+    } catch (error) {
+      console.error('Error fetching class students:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load class students",
         variant: "destructive"
       });
     } finally {
@@ -118,316 +221,522 @@ const Students = () => {
     }
   };
 
-  const handleLoadData = () => {
-    fetchStudents();
-  };
+  // New fetch function for institute-based students (class + subject)
+  const fetchInstituteSubjectStudents = async () => {
+    if (!selectedInstitute?.id || !selectedClass?.id || !selectedSubject?.id) return;
 
-  useEffect(() => {
-    if (!dataLoaded) {
-      handleLoadData();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (dataLoaded) {
-      fetchStudents();
-    }
-  }, [currentPage, itemsPerPage, searchTerm, statusFilter, gradeFilter, genderFilter]);
-
-  const handleViewStudent = (student: Student) => {
-    setSelectedStudent(student);
-    setShowViewDialog(true);
-  };
-
-  const handleAssignParent = (student: Student) => {
-    setSelectedStudent(student);
-    setShowAssignParentDialog(true);
-  };
-
-  const handleDeleteStudent = async (student: Student) => {
-    if (!confirm(`Are you sure you want to delete student ${student.user.firstName} ${student.user.lastName}?`)) {
-      return;
-    }
+    setLoading(true);
     try {
-      const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/students/${student.userId}`, {
-        method: 'DELETE',
-        headers: getApiHeaders()
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete student');
+      const response = await fetch(
+        `${getBaseUrl()}/institute-users/institute/${selectedInstitute.id}/users/STUDENT/class/${selectedClass.id}/subject/${selectedSubject.id}`,
+        { headers: getApiHeaders() }
+      );
+      
+      if (response.ok) {
+        const data: InstituteStudentsResponse = await response.json();
+        setInstituteStudents(data.data);
+        const totalStudents = data.meta.total;
+        const currentPage = data.meta.page;
+        const totalPages = data.meta.totalPages;
+        setDataLoaded(true);
+        
+        toast({
+          title: "Subject Students Loaded",
+          description: `Successfully loaded ${data.data.length} students.`
+        });
+      } else {
+        throw new Error('Failed to fetch subject students');
       }
-      toast({
-        title: "Student Deleted",
-        description: `Student ${student.user.firstName} ${student.user.lastName} has been deleted.`,
-        variant: "destructive"
-      });
-      await fetchStudents();
     } catch (error) {
-      console.error('Error deleting student:', error);
+      console.error('Error fetching subject students:', error);
       toast({
-        title: "Delete Failed",
-        description: "Failed to delete student. Please try again.",
+        title: "Error",
+        description: "Failed to load subject students",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Determine which fetch function to use
+  const getLoadFunction = () => {
+    if (!shouldUseInstituteApi()) {
+      const currentPage = 1;
+      return () => fetchStudents(currentPage);
+    }
+    
+    if (selectedSubject) {
+      return fetchInstituteSubjectStudents;
+    } else if (selectedClass) {
+      return fetchInstituteClassStudents;
+    }
+    
+    const currentPage = 1;
+    return () => fetchStudents(currentPage);
+  };
+
+  const getLoadButtonText = () => {
+    if (!shouldUseInstituteApi()) {
+      return fetchStudentsRequest.loading || loading ? 'Loading Students...' : 'Load Students';
+    }
+    
+    if (selectedSubject) {
+      return loading ? 'Loading Subject Students...' : 'Load Subject Students';
+    } else if (selectedClass) {
+      return loading ? 'Loading Class Students...' : 'Load Class Students';
+    }
+    
+    return fetchStudentsRequest.loading || loading ? 'Loading Students...' : 'Load Students';
+  };
+
+  const getCurrentSelection = () => {
+    if (!shouldUseInstituteApi()) return '';
+    
+    const parts = [];
+    if (selectedInstitute) parts.push(`Institute: ${selectedInstitute.name}`);
+    if (selectedClass) parts.push(`Class: ${selectedClass.name}`);
+    if (selectedSubject) parts.push(`Subject: ${selectedSubject.name}`);
+    return parts.join(' → ');
   };
 
   const handleCreateStudent = async (studentData: any) => {
     try {
-      setLoading(true);
-      const headers = getApiHeaders();
-      const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/students`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(studentData)
-      });
-      if (!response.ok) {
-        throw new Error('Failed to create student');
-      }
+      console.log('Submitting student data:', studentData);
+      
+      await createStudentRequest.execute(studentData);
+      
       toast({
-        title: "Student Created",
-        description: `Student ${studentData.user.firstName} ${studentData.user.lastName} has been created successfully.`
+        title: "Success",
+        description: "Student created successfully!",
       });
-      setShowCreateDialog(false);
-      await fetchStudents();
+      
+      setShowCreateForm(false);
+      
+      // Refresh students list after successful creation
+      const loadFn = getLoadFunction();
+      await loadFn();
+      
     } catch (error) {
       console.error('Error creating student:', error);
       toast({
-        title: "Creation Failed",
-        description: "Failed to create student. Please try again.",
+        title: "Error", 
+        description: "Failed to create student",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleAssignParentSubmit = async (parentData: any) => {
-    if (!selectedStudent) return;
-    try {
-      setLoading(true);
-      const baseUrl = getBaseUrl();
-      const response = await fetch(`${baseUrl}/students/${selectedStudent.userId}/assign-parent`, {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify(parentData)
-      });
-      if (!response.ok) {
-        throw new Error('Failed to assign parent');
+  // Columns for both student types
+  const studentColumns = [
+    {
+      key: 'student',
+      header: 'Student',
+      render: (value: any, row: Student | InstituteStudent) => {
+        // Handle different data structures
+        const name = 'user' in row ? `${row.user.firstName} ${row.user.lastName}` : row.name;
+        const email = 'user' in row ? row.user.email : (row as InstituteStudent).email || 'N/A';
+        const imageUrl = 'user' in row ? row.user.imageUrl : (row as InstituteStudent).imageUrl;
+        const userIdByInstitute = 'user' in row ? 'N/A' : (row as InstituteStudent).userIdByInstitute || row.id;
+        
+        return (
+          <div className="flex items-center space-x-3">
+            <Avatar className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
+              <AvatarImage src={imageUrl || ''} alt={name} />
+              <AvatarFallback className="text-xs">
+                {name.split(' ').map(n => n.charAt(0)).join('')}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium truncate">{name}</p>
+              <p className="text-sm text-muted-foreground truncate">ID: {userIdByInstitute}</p>
+            </div>
+          </div>
+        );
       }
-      toast({
-        title: "Parent Assigned",
-        description: `Parent has been assigned to ${selectedStudent.user.firstName} ${selectedStudent.user.lastName} successfully.`
-      });
-      setShowAssignParentDialog(false);
-      setSelectedStudent(null);
-      await fetchStudents();
-    } catch (error) {
-      console.error('Error assigning parent:', error);
-      toast({
-        title: "Assignment Failed",
-        description: "Failed to assign parent. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
+    },
+    {
+      key: 'contact',
+      header: 'Contact Information',
+      render: (value: any, row: Student | InstituteStudent) => {
+        const phone = 'user' in row ? row.user.phoneNumber : (row as InstituteStudent).phoneNumber;
+        const email = 'user' in row ? row.user.email : (row as InstituteStudent).email;
+        
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center text-sm">
+              <span className="truncate">{email || 'N/A'}</span>
+            </div>
+            <div className="flex items-center text-sm">
+              <span className="truncate">{phone || 'N/A'}</span>
+            </div>
+          </div>
+        );
+      }
+    },
+    {
+      key: 'address',
+      header: 'Address',
+      render: (value: any, row: Student | InstituteStudent) => {
+        if ('user' in row) {
+          return <span className="text-sm text-muted-foreground">N/A</span>;
+        }
+        
+        const student = row as InstituteStudent;
+        return (
+          <div className="space-y-1 text-sm">
+            <p className="truncate">{student.addressLine1 || 'N/A'}</p>
+            {student.addressLine2 && (
+              <p className="text-muted-foreground truncate">{student.addressLine2}</p>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      key: 'dateOfBirth',
+      header: 'Date of Birth',
+      render: (value: any, row: Student | InstituteStudent) => {
+        const dateOfBirth = 'user' in row ? row.user.dateOfBirth : (row as InstituteStudent).dateOfBirth;
+        
+        return (
+          <div className="text-sm">
+            {dateOfBirth 
+              ? new Date(dateOfBirth).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })
+              : 'N/A'
+            }
+          </div>
+        );
+      }
+    },
+    {
+      key: 'guardians',
+      header: 'Parent/Guardian',
+      render: (value: any, row: Student | InstituteStudent) => {
+        if ('user' in row) {
+          // Original Student structure
+          return (
+            <div className="space-y-1">
+              {row.fatherId && (
+                <Badge variant="outline" className="text-xs">
+                  Father: {row.fatherId}
+                </Badge>
+              )}
+              {row.motherId && (
+                <Badge variant="outline" className="text-xs">
+                  Mother: {row.motherId}
+                </Badge>
+              )}
+              {row.guardianId && (
+                <Badge variant="outline" className="text-xs">
+                  Guardian: {row.guardianId}
+                </Badge>
+              )}
+              {!row.fatherId && !row.motherId && !row.guardianId && (
+                <span className="text-sm text-muted-foreground">N/A</span>
+              )}
+            </div>
+          );
+        }
+        
+        // InstituteStudent structure
+        const student = row as InstituteStudent;
+        return (
+          <div className="space-y-1">
+            {student.fatherId && (
+              <Badge variant="outline" className="text-xs">
+                Father: {student.fatherId}
+              </Badge>
+            )}
+            {student.motherId && (
+              <Badge variant="outline" className="text-xs">
+                Mother: {student.motherId}
+              </Badge>
+            )}
+            {student.guardianId && (
+              <Badge variant="outline" className="text-xs">
+                Guardian: {student.guardianId}
+              </Badge>
+            )}
+            {!student.fatherId && !student.motherId && !student.guardianId && (
+              <span className="text-sm text-muted-foreground">N/A</span>
+            )}
+          </div>
+        );
+      }
     }
+  ];
+
+  // Get the current dataset to filter and display
+  const getCurrentStudentData = () => {
+    return shouldUseInstituteApi() ? instituteStudents : students;
   };
 
-  const columns = [{
-    key: 'user.firstName',
-    header: 'Student',
-    render: (value: any, row: Student) => <div className="flex items-center space-x-3">
-          <Avatar className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
-            <AvatarImage src={row.user.imageUrl || ''} alt={row.user.firstName} />
-            <AvatarFallback className="text-xs">
-              {row.user.firstName.charAt(0)}{row.user.lastName.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="font-medium truncate">{row.user.firstName} {row.user.lastName}</p>
-            <p className="text-sm text-gray-500 truncate">{row.user.email}</p>
-          </div>
-        </div>
-  }, {
-    key: 'studentId',
-    header: 'Student ID'
-  }, {
-    key: 'user.phone',
-    header: 'Contact',
-    render: (value: any, row: Student) => <div className="space-y-1">
-          <div className="flex items-center text-sm">
-            <Phone className="h-3 w-3 mr-1 flex-shrink-0" />
-            <span className="truncate">{row.user.phone}</span>
-          </div>
-          <div className="flex items-center text-sm">
-            <Mail className="h-3 w-3 mr-1 flex-shrink-0" />
-            <span className="truncate">{row.user.email}</span>
-          </div>
-        </div>
-  }, {
-    key: 'user.gender',
-    header: 'Gender'
-  }, {
-    key: 'bloodGroup',
-    header: 'Blood Group'
-  }, {
-    key: 'isActive',
-    header: 'Status',
-    render: (value: boolean) => <Badge variant={value ? "default" : "secondary"}>
-          {value ? "Active" : "Inactive"}
-        </Badge>
-  }];
-
-  // Filter students for mobile view
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = !searchTerm || Object.values(student.user).some(value => String(value).toLowerCase().includes(searchTerm.toLowerCase())) || student.studentId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || String(student.isActive) === statusFilter;
-    const matchesGender = genderFilter === 'all' || student.user.gender === genderFilter;
-    return matchesSearch && matchesStatus && matchesGender;
+  const filteredStudents = getCurrentStudentData().filter((student: Student | InstituteStudent) => {
+    // Handle different data structures for search
+    let name, email, studentId;
+    
+    if ('user' in student) {
+      // Original Student structure
+      name = `${student.user.firstName} ${student.user.lastName}`;
+      email = student.user.email;
+      studentId = student.studentId;
+    } else {
+      // InstituteStudent structure
+      name = student.name;
+      email = student.email || '';
+      studentId = student.userIdByInstitute || student.id;
+    }
+    
+    const matchesSearch = !searchTerm || 
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      studentId.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Status filter only applies to original Student structure
+    const matchesStatus = statusFilter === 'all' || 
+      ('user' in student && statusFilter === 'active' && student.isActive) || 
+      ('user' in student && statusFilter === 'inactive' && !student.isActive) ||
+      !('user' in student); // Institute students don't have status filter
+    
+    return matchesSearch && matchesStatus;
   });
 
+  if (!user) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-600 dark:text-gray-400">Please log in to view students.</p>
+      </div>
+    );
+  }
+
+  // Special handling for InstituteAdmin and Teacher users requiring selections
+  if (shouldUseInstituteApi() && (!selectedClass || !dataLoaded)) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Students</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              {getCurrentSelection() || 'Select institute and class to view students'}
+            </p>
+          </div>
+        </div>
+
+        {!selectedClass ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Select Class Required
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Please select an institute and class to view students.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Users className="h-16 w-16 mx-auto mb-4 text-blue-600" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Load Students
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-2">
+                Current Selection: {getCurrentSelection()}
+              </p>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Click the button below to load students for your selection.
+              </p>
+              <Button 
+                onClick={getLoadFunction()} 
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    {getLoadButtonText()}
+                  </>
+                ) : (
+                  <>
+                    <Users className="h-4 w-4 mr-2" />
+                    {getLoadButtonText()}
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          
-          
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Students</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            {shouldUseInstituteApi() && getCurrentSelection() 
+              ? getCurrentSelection() 
+              : 'Manage student records and information'}
+          </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <BookOpen className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
-          <Badge variant="outline" className="text-sm">
-            {totalItems} Total Students
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="flex items-center gap-1">
+            <Users className="h-4 w-4" />
+            {pagination.totalCount} Students
           </Badge>
+          {/* Assign User Buttons - Only for InstituteAdmin and Teacher */}
+          {shouldUseInstituteApi() && selectedClass && (user?.role === 'InstituteAdmin' || user?.role === 'Teacher') && (
+            <>
+              {selectedSubject ? (
+                <Button
+                  onClick={() => setShowSubjectAssignDialog(true)}
+                  className="flex items-center gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Assign User
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setShowAssignDialog(true)}
+                  className="flex items-center gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Assign User
+                </Button>
+              )}
+            </>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            Filters
+          </Button>
+          <Button 
+            onClick={getLoadFunction()} 
+            disabled={fetchStudentsRequest.loading || loading}
+            variant="outline"
+            size="sm"
+          >
+            {fetchStudentsRequest.loading || loading ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </>
+            )}
+          </Button>
+          {!shouldUseInstituteApi() && (
+            <Button onClick={() => setShowCreateForm(true)} className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Student
+            </Button>
+          )}
         </div>
       </div>
 
-      {!dataLoaded ? (
-        <div className="text-center py-12">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            Students Data
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Click the button below to load students data
-          </p>
-          <Button onClick={handleLoadData} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
-            {loading ? <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Loading Data...
-              </> : <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Load Data
-              </>}
-          </Button>
-        </div>
+      {/* Filter Controls */}
+      {showFilters && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Filter className="h-5 w-5" />
+              Filter Students
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search students..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              {!shouldUseInstituteApi() && (
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('all');
+                }}
+                className="w-full"
+              >
+                Clear Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Students Table/Cards */}
+      {filteredStudents.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Users className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              No Students Found
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'No students match your current filters.' 
+                : 'No students have been created yet.'}
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         <>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap gap-2 items-center justify-between">
-              <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                Filters
-              </Button>
-              
-              <div className="flex items-center gap-2">
-                <Button onClick={() => setShowCreateDialog(true)} className="bg-blue-600 hover:bg-blue-700">
-                  Create Student
-                </Button>
-                <Button onClick={handleLoadData} disabled={loading} variant="outline" className="flex items-center gap-2">
-                  {loading ? <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Refreshing...
-                    </> : <>
-                      <RefreshCw className="h-4 w-4" />
-                      Refresh
-                    </>}
-                </Button>
-              </div>
-            </div>
-
-            {/* Filter Controls */}
-            {showFilters && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    Search Students
-                  </label>
-                  <Input placeholder="Search students..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full" />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    Status
-                  </label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="true">Active</SelectItem>
-                      <SelectItem value="false">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                    Gender
-                  </label>
-                  <Select value={genderFilter} onValueChange={setGenderFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Genders</SelectItem>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-end">
-                  <Button variant="outline" onClick={() => {
-              setSearchTerm('');
-              setStatusFilter('all');
-              setGradeFilter('all');
-              setGenderFilter('all');
-            }} className="w-full">
-                    Clear Filters
-                  </Button>
-                </div>
-              </div>}
-          </div>
-
-          {/* Desktop Table View */}
+          {/* Desktop MUI Table View */}
           <div className="hidden md:block">
-            <DataTable
+            <MUITable
               title=""
-              data={students}
-              columns={columns}
+              data={filteredStudents}
+              columns={studentColumns.map(col => ({
+                id: col.key,
+                label: col.header,
+                minWidth: 170,
+                format: col.render
+              }))}
               onAdd={undefined}
               onEdit={undefined}
-              onDelete={handleDeleteStudent}
-              onView={handleViewStudent}
-              searchPlaceholder="Search students..."
-              customActions={[{
-                label: 'Assign Parent',
-                action: handleAssignParent,
-                variant: 'outline',
-                icon: <Users className="h-4 w-4" />
-              }]}
-              currentPage={currentPage}
-              totalItems={totalItems}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              onItemsPerPageChange={setItemsPerPage}
-              itemsPerPage={itemsPerPage}
+              onDelete={undefined}
+              onView={undefined}
+              page={pagination.page}
+              rowsPerPage={pagination.limit}
+              totalCount={filteredStudents.length}
+              onPageChange={setPage}
+              onRowsPerPageChange={setLimit}
+              sectionType="students"
               allowAdd={false}
               allowEdit={false}
-              allowDelete={true}
+              allowDelete={false}
             />
           </div>
 
@@ -435,102 +744,53 @@ const Students = () => {
           <div className="md:hidden">
             <DataCardView
               data={filteredStudents}
-              columns={columns}
-              onView={handleViewStudent}
-              onDelete={handleDeleteStudent}
-              customActions={[{
-                label: 'Assign Parent',
-                action: handleAssignParent,
-                variant: 'outline',
-                icon: <Users className="h-4 w-4" />
-              }]}
+              columns={studentColumns}
               allowEdit={false}
-              allowDelete={true}
+              allowDelete={false}
             />
           </div>
         </>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create New Student</DialogTitle>
-          </DialogHeader>
-          <CreateStudentForm onSubmit={handleCreateStudent} onCancel={() => setShowCreateDialog(false)} />
-        </DialogContent>
-      </Dialog>
+      {/* Pagination - Only show for paginated data */}
+      {shouldUseInstituteApi() && pagination.totalCount > pagination.limit && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {(pagination.page * pagination.limit) + 1} to {Math.min((pagination.page + 1) * pagination.limit, pagination.totalCount)} of {pagination.totalCount} students
+          </p>
+        </div>
+      )}
 
-      {/* Assign Parent Dialog */}
-      <Dialog open={showAssignParentDialog} onOpenChange={setShowAssignParentDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Assign Parent to Student</DialogTitle>
-            <DialogDescription>
-              Assign a parent or guardian to {selectedStudent?.user.firstName} {selectedStudent?.user.lastName}
-            </DialogDescription>
-          </DialogHeader>
-          <AssignParentForm onSubmit={handleAssignParentSubmit} onCancel={() => {
-          setShowAssignParentDialog(false);
-          setSelectedStudent(null);
-        }} />
-        </DialogContent>
-      </Dialog>
+      {/* Create Student Form Dialog - Only for non-institute users */}
+      {!shouldUseInstituteApi() && showCreateForm && (
+        <CreateStudentForm
+          onSubmit={handleCreateStudent}
+          onCancel={() => setShowCreateForm(false)}
+          loading={createStudentRequest.loading}
+        />
+      )}
 
-      {/* View Dialog */}
-      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Student Details</DialogTitle>
-          </DialogHeader>
-          {selectedStudent && <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={selectedStudent.user.imageUrl || ''} alt={selectedStudent.user.firstName} />
-                  <AvatarFallback>
-                    {selectedStudent.user.firstName.charAt(0)}{selectedStudent.user.lastName.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-xl font-semibold">
-                    {selectedStudent.user.firstName} {selectedStudent.user.lastName}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400">Student ID: {selectedStudent.studentId}</p>
-                  <Badge variant={selectedStudent.isActive ? "default" : "secondary"}>
-                    {selectedStudent.isActive ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Email:</label>
-                  <p className="text-sm">{selectedStudent.user.email}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Phone:</label>
-                  <p className="text-sm">{selectedStudent.user.phone}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Gender:</label>
-                  <p className="text-sm">{selectedStudent.user.gender}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Blood Group:</label>
-                  <p className="text-sm">{selectedStudent.bloodGroup}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Emergency Contact:</label>
-                  <p className="text-sm">{selectedStudent.emergencyContact}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Medical Conditions:</label>
-                  <p className="text-sm">{selectedStudent.medicalConditions || 'None'}</p>
-                </div>
-              </div>
-            </div>}
-        </DialogContent>
-      </Dialog>
+      {/* Assign Students Dialog - Only for InstituteAdmin and Teacher (Class level) */}
+      {shouldUseInstituteApi() && selectedClass && !selectedSubject && (
+        <AssignStudentsDialog
+          open={showAssignDialog}
+          onOpenChange={setShowAssignDialog}
+          onAssignmentComplete={() => {
+            getLoadFunction()(); // Refresh the students list
+          }}
+        />
+      )}
+
+      {/* Assign Subject Students Dialog - Only for InstituteAdmin and Teacher (Subject level) */}
+      {shouldUseInstituteApi() && selectedClass && selectedSubject && (
+        <AssignSubjectStudentsDialog
+          open={showSubjectAssignDialog}
+          onOpenChange={setShowSubjectAssignDialog}
+          onAssignmentComplete={() => {
+            getLoadFunction()(); // Refresh the students list
+          }}
+        />
+      )}
     </div>
   );
 };

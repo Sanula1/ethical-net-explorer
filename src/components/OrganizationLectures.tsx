@@ -1,30 +1,22 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Video, Search, Filter, Calendar, Clock, MapPin, Monitor, Eye, EyeOff, ExternalLink, FileText } from 'lucide-react';
+import { Video, Search, Filter, Eye, EyeOff, Plus, MapPin, Calendar, Clock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { organizationApi, OrganizationLecture, OrganizationQueryParams } from '@/api/organization.api';
 import { useToast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format, isValid, parseISO } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import CreateOrganizationLectureForm from './forms/CreateOrganizationLectureForm';
+import { format } from 'date-fns';
 
-const formatSafeDate = (dateString: string, formatString: string): string => {
-  try {
-    if (!dateString) return 'Invalid date';
-    
-    const date = parseISO(dateString);
-    if (!isValid(date)) return 'Invalid date';
-    
-    return format(date, formatString);
-  } catch (error) {
-    console.warn('Date formatting error:', error, 'for date:', dateString);
-    return 'Invalid date';
-  }
-};
+interface OrganizationLecturesProps {
+  organizationId?: string;
+  courseId?: string;
+}
 
-const OrganizationLectures = () => {
+const OrganizationLectures = ({ organizationId, courseId }: OrganizationLecturesProps) => {
   const [lectures, setLectures] = useState<OrganizationLecture[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,7 +24,9 @@ const OrganizationLectures = () => {
   const [publicFilter, setPublicFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const fetchLectures = async () => {
     try {
@@ -60,9 +54,27 @@ const OrganizationLectures = () => {
     }
   };
 
+  const handleCreateLecture = () => {
+    setShowCreateForm(true);
+  };
+
+  const handleCreateSuccess = (lecture: any) => {
+    console.log('Lecture created successfully:', lecture);
+    setShowCreateForm(false);
+    fetchLectures(); // Refresh the list
+    toast({
+      title: "Success",
+      description: "Lecture created successfully",
+    });
+  };
+
+  const handleCreateCancel = () => {
+    setShowCreateForm(false);
+  };
+
   useEffect(() => {
     fetchLectures();
-  }, [currentPage, searchTerm, modeFilter, publicFilter]);
+  }, [currentPage, searchTerm, modeFilter, publicFilter, organizationId, courseId]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,10 +89,15 @@ const OrganizationLectures = () => {
     setCurrentPage(1);
   };
 
-  const filteredLectures = lectures.filter(lecture => {
-    if (modeFilter === 'all') return true;
-    return lecture.mode === modeFilter;
-  });
+  if (showCreateForm) {
+    return (
+      <CreateOrganizationLectureForm
+        courseId={courseId || ''}
+        onSuccess={handleCreateSuccess}
+        onCancel={handleCreateCancel}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -90,18 +107,43 @@ const OrganizationLectures = () => {
     );
   }
 
+  const getHeaderInfo = () => {
+    if (courseId) {
+      return {
+        title: 'Course Lectures',
+        description: 'Browse lectures for this course'
+      };
+    } else if (organizationId) {
+      return {
+        title: 'Organization Lectures',
+        description: 'Browse lectures for this organization'
+      };
+    }
+    return {
+      title: 'Lectures',
+      description: 'Browse and manage organization lectures'
+    };
+  };
+
+  const headerInfo = getHeaderInfo();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Lectures</h1>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{headerInfo.title}</h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Browse and manage organization lectures
+            {headerInfo.description}
           </p>
         </div>
+        {user?.role === 'OrganizationManager' && (
+          <Button onClick={handleCreateLecture} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Create Lecture
+          </Button>
+        )}
       </div>
 
-      {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -169,14 +211,17 @@ const OrganizationLectures = () => {
         </CardContent>
       </Card>
 
-      {/* Lectures Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredLectures.map((lecture) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {lectures.map((lecture) => (
           <Card key={lecture.lectureId} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
-                  <Video className="h-6 w-6 text-blue-600" />
+                  {lecture.mode === 'online' ? (
+                    <Video className="h-6 w-6 text-blue-600" />
+                  ) : (
+                    <MapPin className="h-6 w-6 text-green-600" />
+                  )}
                   <div>
                     <CardTitle className="text-lg">{lecture.title}</CardTitle>
                     <CardDescription className="line-clamp-2">
@@ -188,8 +233,8 @@ const OrganizationLectures = () => {
             </CardHeader>
             
             <CardContent>
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
                   <Badge variant={lecture.isPublic ? "default" : "secondary"}>
                     {lecture.isPublic ? (
                       <><Eye className="h-3 w-3 mr-1" /> Public</>
@@ -197,67 +242,50 @@ const OrganizationLectures = () => {
                       <><EyeOff className="h-3 w-3 mr-1" /> Private</>
                     )}
                   </Badge>
-                  <Badge variant={lecture.mode === 'online' ? "default" : "outline"}>
+                  
+                  <Badge variant={lecture.mode === 'online' ? "default" : "secondary"}>
                     {lecture.mode === 'online' ? (
-                      <><Monitor className="h-3 w-3 mr-1" /> Online</>
+                      <><Video className="h-3 w-3 mr-1" /> Online</>
                     ) : (
                       <><MapPin className="h-3 w-3 mr-1" /> Physical</>
                     )}
                   </Badge>
                 </div>
                 
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                    <Calendar className="h-4 w-4" />
-                    {formatSafeDate(lecture.timeStart, 'PPP')}
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                    <Clock className="h-4 w-4" />
-                    {formatSafeDate(lecture.timeStart, 'p')} - {formatSafeDate(lecture.timeEnd, 'p')}
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                <div className="space-y-2 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
-                    {lecture.venue}
+                    <span>{lecture.venue}</span>
                   </div>
+                  
+                  {lecture.timeStart && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>{format(new Date(lecture.timeStart), 'MMM dd, yyyy')}</span>
+                    </div>
+                  )}
+                  
+                  {lecture.timeStart && lecture.timeEnd && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      <span>
+                        {format(new Date(lecture.timeStart), 'HH:mm')} - {format(new Date(lecture.timeEnd), 'HH:mm')}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {lecture.documentCount > 0 && (
+                    <div className="text-xs text-blue-600">
+                      {lecture.documentCount} document{lecture.documentCount !== 1 ? 's' : ''}
+                    </div>
+                  )}
                 </div>
-                
-                {lecture.liveLink && (
-                  <Button size="sm" variant="outline" className="w-full" asChild>
-                    <a href={lecture.liveLink} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Join {lecture.liveMode === 'meet' ? 'Google Meet' : 'Zoom'}
-                    </a>
-                  </Button>
-                )}
-                
-                {lecture.documents && lecture.documents.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <FileText className="h-4 w-4" />
-                      Documents ({lecture.documentCount})
-                    </div>
-                    <div className="space-y-1 max-h-24 overflow-y-auto">
-                      {lecture.documents.slice(0, 2).map((doc) => (
-                        <div key={doc.documentationId} className="text-xs text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                          <div className="font-medium">{doc.title}</div>
-                          <div className="truncate">{doc.description}</div>
-                        </div>
-                      ))}
-                      {lecture.documents.length > 2 && (
-                        <div className="text-xs text-gray-500 italic">
-                          +{lecture.documents.length - 2} more documents
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <Button
@@ -282,7 +310,7 @@ const OrganizationLectures = () => {
         </div>
       )}
 
-      {filteredLectures.length === 0 && !loading && (
+      {lectures.length === 0 && !loading && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Video className="h-12 w-12 text-gray-400 mb-4" />

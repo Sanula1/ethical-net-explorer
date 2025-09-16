@@ -1,195 +1,165 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
+import MUITable from '@/components/ui/mui-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DataCardView } from '@/components/ui/data-card-view';
-import { RefreshCw, ExternalLink, Play, Search, Filter, Clock, MapPin, Users, BookOpen, Plus, Edit, Trash2 } from 'lucide-react';
+import { RefreshCw, Filter, Plus, Calendar, Clock, FileText, CheckCircle, ExternalLink, BarChart3, Eye } from 'lucide-react';
 import { useAuth, type UserRole } from '@/contexts/AuthContext';
 import { AccessControl } from '@/utils/permissions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import CreateExamForm from '@/components/forms/CreateExamForm';
-import { getBaseUrl } from '@/contexts/utils/auth.api';
+import { UpdateExamForm } from '@/components/forms/UpdateExamForm';
+import CreateResultsForm from '@/components/forms/CreateResultsForm';
+import { DataCardView } from '@/components/ui/data-card-view';
+import { useTableData } from '@/hooks/useTableData';
+import { cachedApiClient } from '@/api/cachedClient';
+import { ExamResultsDialog } from '@/components/ExamResultsDialog';
 
-interface Exam {
-  id: string;
-  instituteId: string;
-  classId: string;
-  subjectId: string;
-  title: string;
-  description: string;
-  examType: 'online' | 'physical';
-  durationMinutes: number;
-  totalMarks: string;
-  passingMarks: string;
-  scheduleDate: string;
-  startTime: string;
-  endTime: string;
-  venue: string;
-  examLink?: string;
-  instructions: string;
-  status: 'scheduled' | 'draft' | 'completed' | 'cancelled';
-  createdBy: string | null;
-  toWhom: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  institute: any;
-  class: any;
-  subject: any;
-  creator: any;
+interface ExamsProps {
+  apiLevel?: 'institute' | 'class' | 'subject';
 }
 
-const Exams = () => {
-  const { selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId, user } = useAuth();
+const Exams = ({ apiLevel = 'institute' }: ExamsProps) => {
+  const { user, selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId } = useAuth();
   const { toast } = useToast();
-  
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [filteredExams, setFilteredExams] = useState<Exam[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  
-  // Filter states
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  
-  // Dialog states
-  const [examFormUrl, setExamFormUrl] = useState('');
-  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [examToDelete, setExamToDelete] = useState<Exam | null>(null);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [isCreateResultsDialogOpen, setIsCreateResultsDialogOpen] = useState(false);
+  const [isExamResultsDialogOpen, setIsExamResultsDialogOpen] = useState(false);
+  const [selectedExam, setSelectedExam] = useState<any>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  const getAuthToken = () => {
-    const token = localStorage.getItem('access_token') || 
-                  localStorage.getItem('token') || 
-                  localStorage.getItem('authToken');
-    return token;
-  };
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
 
-  const getApiHeaders = () => {
-    const token = getAuthToken();
+  const userRole = (user?.role || 'Student') as UserRole;
+
+  // Enhanced pagination with useTableData hook
+  const {
+    state: { data: examsData, loading: isLoading },
+    pagination,
+    actions: { refresh, updateFilters },
+    filters
+  } = useTableData({
+    endpoint: '/institute-class-subject-exams',
+    defaultParams: buildDefaultParams(),
+    dependencies: [currentInstituteId, currentClassId, currentSubjectId, userRole],
+    pagination: {
+      defaultLimit: 50,
+      availableLimits: [25, 50, 100]
+    }
+  });
+
+  const dataLoaded = examsData.length > 0;
+
+  function buildDefaultParams() {
+    const params: Record<string, any> = {};
+
+    // Add context-aware filtering
+    if (currentInstituteId) {
+      params.instituteId = currentInstituteId;
+    }
+    if (currentClassId) {
+      params.classId = currentClassId;
+    }
+    if (currentSubjectId) {
+      params.subjectId = currentSubjectId;
+    }
+
+    // For Teachers, add teacherId parameter
+    if (userRole === 'Teacher' && user?.id) {
+      params.teacherId = user.id;
+    }
+
+    return params;
+  }
+
+  const handleLoadData = async (forceRefresh = false) => {
+    // For students: require all context selections
+    if (userRole === 'Student') {
+      if (!currentInstituteId || !currentClassId || !currentSubjectId) {
+        toast({
+          title: "Missing Selection",
+          description: "Please select institute, class, and subject to view exams.",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
     
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    // For InstituteAdmin and Teacher: require at least institute selection
+    if (userRole === 'InstituteAdmin' || userRole === 'Teacher') {
+      if (!currentInstituteId) {
+        toast({
+          title: "Selection Required",
+          description: "Please select an institute to view exams.",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
-    return headers;
+    // Update filters and refresh data
+    const newFilters = buildDefaultParams();
+    updateFilters(newFilters);
+    
+    if (forceRefresh) {
+      refresh();
+    }
   };
 
-  const loadExamsData = async () => {
-    if (!currentInstituteId) {
-      toast({
-        title: "No Institute Selected",
-        description: "Please select an institute first.",
-        variant: "destructive"
-      });
-      return;
-    }
+  const handleRefreshData = async () => {
+    console.log('Force refreshing exams data...');
+    refresh();
+    setLastRefresh(new Date());
+  };
 
-    setIsLoading(true);
-    console.log('Loading exams data...');
-    console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
+  const handleCreateExam = async () => {
+    setIsCreateDialogOpen(false);
+    // Force refresh after creating new exam
+    refresh();
+  };
+
+  const handleEditExam = (examData: any) => {
+    setSelectedExam(examData);
+    setIsUpdateDialogOpen(true);
+  };
+
+  const handleUpdateExam = () => {
+    handleRefreshData();
+    setIsUpdateDialogOpen(false);
+    setSelectedExam(null);
+  };
+
+  const handleViewResults = (examData: any) => {
+    console.log('View exam results:', examData);
+    setSelectedExam(examData);
+    setIsExamResultsDialogOpen(true);
+  };
+
+  const handleDeleteExam = async (examData: any) => {
+    console.log('Deleting exam:', examData);
     
     try {
-      const baseUrl = getBaseUrl();
-      const headers = getApiHeaders();
+      // Use cached client for delete (will clear related cache)
+      await cachedApiClient.delete(`/institute-class-subject-exams/${examData.id}`);
+
+      console.log('Exam deleted successfully');
       
-      let url: string;
-
-      // Determine which API endpoint to use based on selection context
-      if (currentInstituteId && currentClassId && currentSubjectId) {
-        // Use institute-class-subject-exams endpoint with additional filters
-        url = `${baseUrl}/institute-class-subject-exams/institute/${currentInstituteId}?page=1&limit=10&classId=${currentClassId}&subjectId=${currentSubjectId}&isActive=true`;
-        console.log('Using institute-class-subject-exams endpoint with class and subject filters');
-      } else if (currentInstituteId) {
-        // Use institute-class-subject-exams endpoint for institute only
-        url = `${baseUrl}/institute-class-subject-exams/institute/${currentInstituteId}?page=1&limit=10`;
-        console.log('Using institute-class-subject-exams endpoint for institute only');
-      } else {
-        throw new Error('No valid context for loading exams');
-      }
-
-      console.log('API URL:', url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch exams data: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('Exams loaded successfully:', result);
-      
-      // Handle both array response and paginated response
-      const examsData = result.data || result;
-      setExams(examsData);
-      setFilteredExams(examsData);
-      setDataLoaded(true);
-      
-      toast({
-        title: "Data Loaded",
-        description: `Successfully loaded ${examsData.length} exams.`
-      });
-    } catch (error) {
-      console.error('Failed to load exams:', error);
-      toast({
-        title: "Load Failed",
-        description: "Failed to load exams data.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteExam = async (exam: Exam) => {
-    setExamToDelete(exam);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const confirmDeleteExam = async () => {
-    if (!examToDelete) return;
-
-    setIsLoading(true);
-    try {
-      const baseUrl = getBaseUrl();
-      const headers = getApiHeaders();
-      
-      const response = await fetch(`${baseUrl}/institute-class-subject-exams/${examToDelete.id}`, {
-        method: 'DELETE',
-        headers
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete exam');
-      }
-
       toast({
         title: "Exam Deleted",
-        description: `Exam "${examToDelete.title}" has been deleted successfully.`,
+        description: `Exam ${examData.title} has been deleted successfully.`,
         variant: "destructive"
       });
-
-      setIsDeleteDialogOpen(false);
-      setExamToDelete(null);
-      await loadExamsData();
+      
+      // Force refresh after deletion
+      refresh();
       
     } catch (error) {
       console.error('Error deleting exam:', error);
@@ -198,89 +168,96 @@ const Exams = () => {
         description: "Failed to delete exam. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleEditExam = (exam: Exam) => {
-    setSelectedExam(exam);
-    setIsEditDialogOpen(true);
+  const handleCreateResults = () => {
+    console.log('Create results clicked');
+    setIsCreateResultsDialogOpen(true);
   };
 
-  const handleFormSuccess = () => {
-    loadExamsData();
-  };
 
-  // Apply filters to exams
-  useEffect(() => {
-    let filtered = exams;
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(exam =>
-        exam.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        exam.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        exam.venue.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  const examsColumns = [
+    { key: 'title', header: 'Title' },
+    { key: 'description', header: 'Description' },
+    { 
+      key: 'examType', 
+      header: 'Type',
+      render: (value: string) => (
+        <Badge variant={value === 'online' ? 'default' : 'secondary'}>
+          {value}
+        </Badge>
+      )
+    },
+    { 
+      key: 'durationMinutes', 
+      header: 'Duration (min)',
+      render: (value: number) => `${value} minutes`
+    },
+    { key: 'totalMarks', header: 'Total Marks' },
+    { key: 'passingMarks', header: 'Passing Marks' },
+    { 
+      key: 'scheduleDate', 
+      header: 'Schedule Date', 
+      render: (value: string) => value ? new Date(value).toLocaleDateString() : 'Not set'
+    },
+    { 
+      key: 'startTime', 
+      header: 'Start Time', 
+      render: (value: string) => value ? new Date(value).toLocaleString() : 'Not set'
+    },
+    { 
+      key: 'endTime', 
+      header: 'End Time', 
+      render: (value: string) => value ? new Date(value).toLocaleString() : 'Not set'
+    },
+    { key: 'venue', header: 'Venue' },
+    ...((['InstituteAdmin', 'Teacher', 'Student'] as UserRole[]).includes(userRole) ? [{
+      key: 'examLink', 
+      header: 'Exam Link', 
+      render: (value: string, row: any) => value ? (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="bg-red-600 hover:bg-red-700 text-white"
+          onClick={() => window.open(value, '_blank')}
+        >
+          <ExternalLink className="h-3 w-3 mr-1" />
+          Exam Link
+        </Button>
+      ) : (
+        <span className="text-gray-400">No link</span>
+      )
+    }] : []),
+    { 
+      key: 'status', 
+      header: 'Status',
+      render: (value: string) => (
+        <Badge variant={
+          value === 'scheduled' ? 'default' : 
+          value === 'draft' ? 'secondary' : 
+          value === 'completed' ? 'outline' : 'destructive'
+        }>
+          {value}
+        </Badge>
+      )
     }
+  ];
 
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(exam => exam.status === statusFilter);
-    }
-
-    // Type filter
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter(exam => exam.examType === typeFilter);
-    }
-
-    setFilteredExams(filtered);
-  }, [exams, searchTerm, statusFilter, typeFilter]);
-
-  // Load data when context changes
-  useEffect(() => {
-    if (currentInstituteId) {
-      loadExamsData();
-    }
-  }, [currentInstituteId, currentClassId, currentSubjectId]);
-
-  const handleStartExam = (exam: Exam) => {
-    if (exam.examType === 'online' && exam.examLink) {
-      setExamFormUrl(exam.examLink);
-      setIsFormDialogOpen(true);
-      console.log('Starting online exam:', exam.title);
-    } else {
-      toast({
-        title: "Physical Exam",
-        description: "This is a physical exam. Please attend the scheduled session.",
-      });
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800';
-      case 'draft':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    if (hours > 0) {
-      return `${hours}h ${mins}m`;
-    }
-    return `${mins}m`;
-  };
+  const canAdd = AccessControl.hasPermission(userRole, 'create-exam');
+  const canEdit = userRole === 'Teacher' ? true : AccessControl.hasPermission(userRole, 'edit-exam');
+  const canDelete = userRole === 'Teacher' ? true : AccessControl.hasPermission(userRole, 'delete-exam');
+  const canView = true; // All users can view exams
+  
+  console.log('Exams Component Debug:', {
+    userRole,
+    canAdd,
+    canEdit,
+    canDelete,
+    canView,
+    handleEditExam: !!handleEditExam,
+    handleViewResults: !!handleViewResults
+  });
 
   const getTitle = () => {
     const contexts = [];
@@ -297,7 +274,7 @@ const Exams = () => {
       contexts.push(selectedSubject.name);
     }
     
-    let title = 'Exams Management';
+    let title = 'Exams';
     if (contexts.length > 0) {
       title += ` (${contexts.join(' → ')})`;
     }
@@ -305,90 +282,56 @@ const Exams = () => {
     return title;
   };
 
-  const tableColumns = [
-    {
-      key: 'title',
-      header: 'Title',
-      render: (value: any, row: Exam) => (
-        <div>
-          <div className="font-medium">{value}</div>
-          <div className="text-sm text-gray-500">{row.description}</div>
-        </div>
-      )
-    },
-    {
-      key: 'examType',
-      header: 'Type',
-      render: (value: any) => (
-        <Badge variant={value === 'online' ? 'default' : 'secondary'}>
-          {value === 'online' ? (
-            <>
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Online
-            </>
-          ) : (
-            <>
-              <MapPin className="h-3 w-3 mr-1" />
-              Physical
-            </>
-          )}
-        </Badge>
-      )
-    },
-    {
-      key: 'durationMinutes',
-      header: 'Duration',
-      render: (value: any) => formatDuration(value)
-    },
-    {
-      key: 'totalMarks',
-      header: 'Marks',
-      render: (value: any, row: Exam) => `${value}/${row.passingMarks}`
-    },
-    {
-      key: 'venue',
-      header: 'Venue',
-      render: (value: any) => value || '-'
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (value: any) => (
-        <Badge className={getStatusColor(value)}>
-          {value.toUpperCase()}
-        </Badge>
-      )
+  // Filter the exams based on local filters for mobile view
+  const filteredExams = examsData.filter(exam => {
+    const matchesSearch = !searchTerm || 
+      Object.values(exam).some(value => 
+        String(value).toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    
+    const matchesStatus = statusFilter === 'all' || 
+      exam.status === statusFilter;
+    
+    const matchesType = typeFilter === 'all' || 
+      exam.examType === typeFilter;
+    
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
+  const shouldShowLoadButton = () => {
+    if (userRole === 'Student') {
+      return currentInstituteId && currentClassId && currentSubjectId;
     }
-  ];
-
-  const userRole = (user?.role || 'Student') as UserRole;
-  const canAdd = AccessControl.hasPermission(userRole, 'create-exam');
-  const canEdit = AccessControl.hasPermission(userRole, 'edit-exam');
-  const canDelete = AccessControl.hasPermission(userRole, 'delete-exam');
-
-  const customActions = [
-    {
-      label: 'Start',
-      action: (exam: Exam) => handleStartExam(exam),
-      icon: <Play className="h-3 w-3" />,
-      variant: 'default' as const
+    if (userRole === 'InstituteAdmin' || userRole === 'Teacher') {
+      return currentInstituteId;
     }
-  ];
+    return true;
+  };
 
-  if (!dataLoaded) {
-    return (
-      <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-        <div className="text-center py-8 sm:py-12">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+  const getLoadButtonMessage = () => {
+    if (userRole === 'Student' && (!currentInstituteId || !currentClassId || !currentSubjectId)) {
+      return 'Please select institute, class, and subject to view exams.';
+    }
+    if ((userRole === 'InstituteAdmin' || userRole === 'Teacher') && !currentInstituteId) {
+      return 'Please select institute to view exams.';
+    }
+    return 'Click the button below to load exams data';
+  };
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      {!dataLoaded ? (
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
             {getTitle()}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm sm:text-base">
-            Click the button below to load exams data
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            {getLoadButtonMessage()}
           </p>
           <Button 
-            onClick={loadExamsData} 
-            disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+            onClick={() => handleLoadData(false)} 
+            disabled={isLoading || !shouldShowLoadButton()}
+            className="bg-blue-600 hover:bg-blue-700"
           >
             {isLoading ? (
               <>
@@ -398,300 +341,245 @@ const Exams = () => {
             ) : (
               <>
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Load Exams Data
+                Load Data
               </>
             )}
           </Button>
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                {getTitle()}
+              </h1>
+              {lastRefresh && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Last refreshed: {lastRefresh.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+              </Button>
+              <Button 
+                onClick={handleRefreshData} 
+                disabled={isLoading}
+                variant="outline"
+                size="sm"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh Data
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
 
-  return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            {getTitle()}
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm sm:text-base">
-            Create and manage online and physical exams
-          </p>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {canAdd && (
-            <Button 
-              onClick={() => setIsCreateDialogOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Exam
-            </Button>
-          )}
-          <Button 
-            onClick={() => setShowFilters(!showFilters)}
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-          </Button>
-          <Button 
-            onClick={loadExamsData} 
-            disabled={isLoading}
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-          >
-            {isLoading ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Refreshing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      {showFilters && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="h-5 w-5" />
-              Filter Exams
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          {/* Filter Controls */}
+          {showFilters && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Search Exams
+                </label>
                 <Input
                   placeholder="Search exams..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="w-full"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="scheduled">Scheduled</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                  <SelectItem value="physical">Physical</SelectItem>
-                </SelectContent>
-              </Select>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Status
+                </label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Type
+                </label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="physical">Physical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setTypeFilter('all');
+                  }}
+                  className="w-full"
+                >
+                  Clear Filters
+                </Button>
+              </div>
             </div>
+          )}
 
-            <div className="flex justify-between items-center mt-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Showing {filteredExams.length} of {exams.length} exams
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSearchTerm('');
-                  setStatusFilter('all');
-                  setTypeFilter('all');
-                }}
-              >
-                Clear Filters
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+           {/* Add Create Buttons for InstituteAdmin and Teacher */}
+           {(userRole === 'InstituteAdmin' || userRole === 'Teacher') && canAdd && (
+              <div className="flex justify-end gap-2 mb-4">
+                <Button 
+                  onClick={handleCreateResults}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Create Results
+                </Button>
+                <Button 
+                  onClick={() => setIsCreateDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Exam
+                </Button>
+              </div>
+           )}
 
-      {/* Mobile View Content - Always Card View */}
-      <div className="md:hidden">
-        <DataCardView
-          data={filteredExams}
-          columns={tableColumns}
-          onEdit={canEdit ? handleEditExam : undefined}
-          onDelete={canDelete ? handleDeleteExam : undefined}
-          customActions={customActions}
-          allowEdit={canEdit}
-          allowDelete={canDelete}
-        />
-      </div>
-
-      {/* Desktop Table View */}
-      <div className="hidden md:block">
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Marks</TableHead>
-                  <TableHead>Venue</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredExams.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 sm:py-12">
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                        No exams found
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400">
-                        {searchTerm || statusFilter !== 'all' || typeFilter !== 'all'
-                          ? 'Try adjusting your filters to see more results.'
-                          : 'No exams are available for the current selection.'}
-                      </p>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredExams.map((exam) => (
-                    <TableRow key={exam.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{exam.title}</div>
-                          <div className="text-sm text-gray-500">{exam.description}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={exam.examType === 'online' ? 'default' : 'secondary'}>
-                          {exam.examType}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatDuration(exam.durationMinutes)}</TableCell>
-                      <TableCell>{exam.totalMarks}/{exam.passingMarks}</TableCell>
-                      <TableCell>{exam.venue}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(exam.status)}>
-                          {exam.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {exam.status === 'scheduled' && (
-                            <Button 
-                              size="sm" 
-                              onClick={() => handleStartExam(exam)}
-                            >
-                              {exam.examType === 'online' ? 'Start' : 'View'}
-                            </Button>
-                          )}
-                          {canEdit && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditExam(exam)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteExam(exam)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Online Exam Dialog */}
-      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              Online Exam
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(examFormUrl, '_blank')}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in New Tab
-              </Button>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="h-[70vh]">
-            <iframe
-              src={examFormUrl}
-              className="w-full h-full border-0 rounded-lg"
-              title="Online Exam"
+           {/* Desktop MUI Table View */}
+          <div className="hidden md:block">
+            <MUITable
+              title=""
+              data={examsData}
+              columns={examsColumns.map(col => ({
+                id: col.key,
+                label: col.header,
+                minWidth: 170,
+                format: col.render
+              }))}
+              onAdd={canAdd ? () => setIsCreateDialogOpen(true) : undefined}
+              onEdit={userRole === 'InstituteAdmin' ? handleEditExam : undefined}
+              onView={undefined}
+              page={0}
+              rowsPerPage={50}
+              totalCount={examsData.length}
+              onPageChange={() => {}}
+              onRowsPerPageChange={() => {}}
+              sectionType="exams"
+              allowEdit={userRole === 'InstituteAdmin'}
+              allowDelete={canDelete}
+              customActions={[
+                {
+                  label: '',
+                  action: handleViewResults,
+                  icon: <Eye className="h-4 w-4" />,
+                  variant: 'outline' as const
+                }
+              ]}
             />
           </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden">
+            <DataCardView
+              data={filteredExams}
+              columns={examsColumns}
+              onView={handleViewResults}
+              onEdit={canEdit ? handleEditExam : undefined}
+              onDelete={canDelete ? handleDeleteExam : undefined}
+              allowEdit={canEdit}
+              allowDelete={canDelete}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Create Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Exam</DialogTitle>
+          </DialogHeader>
+          <CreateExamForm
+            onClose={() => setIsCreateDialogOpen(false)}
+            onSuccess={handleCreateExam}
+          />
         </DialogContent>
       </Dialog>
 
-      {/* Create Exam Dialog */}
-      {isCreateDialogOpen && (
-        <CreateExamForm
-          onClose={() => setIsCreateDialogOpen(false)}
-          onSuccess={handleFormSuccess}
-        />
-      )}
+      {/* Update Dialog */}
+      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Update Exam</DialogTitle>
+          </DialogHeader>
+          {selectedExam && (
+            <UpdateExamForm
+              exam={selectedExam}
+              onClose={() => setIsUpdateDialogOpen(false)}
+              onSuccess={handleUpdateExam}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
-      {/* Edit Exam Dialog */}
-      {isEditDialogOpen && selectedExam && (
-        <CreateExamForm
-          onClose={() => {
-            setIsEditDialogOpen(false);
-            setSelectedExam(null);
-          }}
-          onSuccess={handleFormSuccess}
-          initialData={selectedExam}
-          isEdit={true}
-        />
-      )}
+      {/* Create Results Dialog */}
+      <Dialog open={isCreateResultsDialogOpen} onOpenChange={setIsCreateResultsDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Results</DialogTitle>
+          </DialogHeader>
+          <CreateResultsForm
+            onClose={() => setIsCreateResultsDialogOpen(false)}
+            onSuccess={() => {
+              setIsCreateResultsDialogOpen(false);
+              toast({
+                title: "Results Created",
+                description: "Exam results have been created successfully."
+              });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Exam</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the exam "{examToDelete?.title}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteExam} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Exam Results Dialog */}
+      <ExamResultsDialog
+        isOpen={isExamResultsDialogOpen}
+        onClose={() => {
+          setIsExamResultsDialogOpen(false);
+          setSelectedExam(null);
+        }}
+        exam={selectedExam}
+      />
     </div>
   );
 };

@@ -1,202 +1,159 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { X, Save, Video, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { lectureApi, type LectureCreateData } from '@/api/lecture.api';
-import { instituteApi, type Class, type Subject, type Teacher } from '@/api/institute.api';
+import { ArrowLeft, Calendar, Clock, MapPin, Video } from 'lucide-react';
+import { lectureApi } from '@/api/lecture.api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CreateLectureFormProps {
-  onClose: () => void;
-  onSuccess: () => void;
+  onClose?: () => void;
+  onSuccess?: () => void | Promise<void>;
+  courseId?: string;
 }
 
-const CreateLectureForm = ({ onClose, onSuccess }: CreateLectureFormProps) => {
-  const { selectedInstitute } = useAuth();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [isInstituteLecture, setIsInstituteLecture] = useState(false);
-  
+const CreateLectureForm = ({ onClose, onSuccess, courseId }: CreateLectureFormProps) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    lectureType: 'online' as 'online' | 'physical',
     venue: '',
-    subject: '',
-    classId: '',
-    subjectId: '',
-    instructorId: '',
-    startTime: '',
-    endTime: '',
-    status: 'scheduled' as 'scheduled' | 'completed' | 'cancelled' | 'in_progress',
-    meetingLink: '',
-    meetingId: '',
-    meetingPassword: '',
+    mode: 'online',
+    timeStart: '',
+    timeEnd: '',
+    isPublic: true,
+    liveLink: '',
     recordingUrl: '',
-    isRecorded: false,
-    maxParticipants: 50,
-    isActive: true
+    maxParticipants: 30,
+    meetingPassword: ''
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const { user, selectedInstitute, selectedClass, selectedSubject } = useAuth();
 
-  useEffect(() => {
-    if (selectedInstitute) {
-      fetchClasses();
-      fetchTeachers();
-    }
-  }, [selectedInstitute]);
-
-  useEffect(() => {
-    if (formData.classId && !isInstituteLecture) {
-      fetchSubjects();
-    }
-  }, [formData.classId, isInstituteLecture]);
-
-  // Reset form fields when institute lecture toggle changes
-  useEffect(() => {
-    if (isInstituteLecture) {
-      setFormData(prev => ({
-        ...prev,
-        classId: '',
-        subjectId: ''
-      }));
-    }
-  }, [isInstituteLecture]);
-
-  const fetchClasses = async () => {
-    try {
-      const response = await instituteApi.getInstituteClasses(selectedInstitute!.id, { isActive: true });
-      setClasses(response.data || []);
-    } catch (error) {
-      console.error('Error fetching classes:', error);
-    }
-  };
-
-  const fetchSubjects = async () => {
-    try {
-      const data = await instituteApi.getInstituteClassSubjects(selectedInstitute!.id, formData.classId);
-      setSubjects(data.map((item: any) => item.subject) || []);
-    } catch (error) {
-      console.error('Error fetching subjects:', error);
-    }
-  };
-
-  const fetchTeachers = async () => {
-    try {
-      const response = await instituteApi.getInstituteUsers(selectedInstitute!.id, 'TEACHER');
-      setTeachers(response.data?.map((item: any) => item.user) || []);
-    } catch (error) {
-      console.error('Error fetching teachers:', error);
-    }
+  const handleInputChange = (field: string, value: string | boolean | number) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedInstitute) return;
+    
+    if (!selectedInstitute?.id || !selectedClass?.id || !selectedSubject?.id || !user?.id) {
+      toast({
+        title: "Error",
+        description: "Please select an institute, class, and subject before creating a lecture",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setLoading(true);
+    setIsLoading(true);
+
     try {
-      const payload: LectureCreateData = {
+      const lectureData = {
         instituteId: selectedInstitute.id,
-        classId: isInstituteLecture ? undefined : formData.classId,
-        subjectId: isInstituteLecture ? undefined : formData.subjectId,
-        instructorId: formData.instructorId,
+        classId: selectedClass.id,
+        subjectId: selectedSubject.id,
+        instructorId: user.id,
         title: formData.title,
         description: formData.description,
-        lectureType: formData.lectureType,
-        venue: formData.venue || null,
-        subject: isInstituteLecture ? formData.subject || undefined : undefined,
-        startTime: formData.startTime ? new Date(formData.startTime).toISOString() : null,
-        endTime: formData.endTime ? new Date(formData.endTime).toISOString() : null,
-        status: formData.status,
-        meetingLink: formData.meetingLink || null,
-        meetingId: formData.meetingId || null,
-        meetingPassword: formData.meetingPassword || null,
-        recordingUrl: formData.recordingUrl || null,
-        isRecorded: formData.isRecorded,
+        lectureType: formData.mode as 'online' | 'physical',
+        venue: formData.venue,
+        startTime: formData.timeStart,
+        endTime: formData.timeEnd,
+        status: 'scheduled' as const,
+        meetingLink: formData.liveLink || undefined,
+        meetingPassword: formData.meetingPassword || undefined,
+        recordingUrl: formData.recordingUrl || undefined,
+        isRecorded: !!formData.recordingUrl,
         maxParticipants: formData.maxParticipants,
-        isActive: formData.isActive
+        isActive: true
       };
-
-      await lectureApi.createLecture(payload, isInstituteLecture);
-
+      
+      console.log('Creating lecture with data:', lectureData);
+      
+      const newLecture = await lectureApi.createLecture(lectureData);
+      
       toast({
         title: "Success",
-        description: `${isInstituteLecture ? 'Institute lecture' : 'Lecture'} created successfully`
+        description: `Lecture "${newLecture.title}" created successfully`,
       });
-      onSuccess();
-      onClose();
+
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        venue: '',
+        mode: 'online',
+        timeStart: '',
+        timeEnd: '',
+        isPublic: true,
+        liveLink: '',
+        recordingUrl: '',
+        maxParticipants: 30,
+        meetingPassword: ''
+      });
+
+      if (onSuccess) {
+        await onSuccess();
+      }
     } catch (error) {
       console.error('Error creating lecture:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create lecture",
-        variant: "destructive"
+        description: "Failed to create lecture. Please try again.",
+        variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-3xl max-h-[90vh] overflow-auto">
+    <div className="space-y-6">
+      {onClose && (
+        <Button variant="outline" onClick={onClose} className="w-fit">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+      )}
+
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Create New Lecture</CardTitle>
-              <CardDescription>Create a new lecture session for students</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Video className="h-5 w-5" />
+            Create New Lecture
+          </CardTitle>
+          <CardDescription>
+            Create a new lecture for the Course Lectures section
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Institute Lecture Toggle */}
-            <div className="flex items-center space-x-2 p-4 bg-gray-50 rounded-lg">
-              <Switch 
-                id="institute-lecture"
-                checked={isInstituteLecture}
-                onCheckedChange={setIsInstituteLecture}
-              />
-              <Label htmlFor="institute-lecture" className="font-medium">
-                Enable Institute Lecture
-              </Label>
-              <span className="text-sm text-gray-500">
-                (Institute-wide lecture without specific class/subject)
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="title">Title *</Label>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="title">Lecture Title</Label>
                 <Input
                   id="title"
+                  placeholder="Enter lecture title..."
                   value={formData.title}
                   onChange={(e) => handleInputChange('title', e.target.value)}
-                  placeholder="Enter lecture title"
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="lectureType">Lecture Type *</Label>
-                <Select value={formData.lectureType} onValueChange={(value) => handleInputChange('lectureType', value)}>
+
+              <div className="space-y-2">
+                <Label htmlFor="mode">Mode</Label>
+                <Select value={formData.mode} onValueChange={(value) => handleInputChange('mode', value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select lecture type" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="online">
@@ -216,189 +173,126 @@ const CreateLectureForm = ({ onClose, onSuccess }: CreateLectureFormProps) => {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="description">Description *</Label>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
+                placeholder="Enter lecture description..."
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Enter lecture description"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="venue">Venue</Label>
+              <Input
+                id="venue"
+                placeholder={formData.mode === 'online' ? "Online platform (e.g., Zoom, Teams)" : "Physical location"}
+                value={formData.venue}
+                onChange={(e) => handleInputChange('venue', e.target.value)}
                 required
               />
             </div>
 
-            {/* Conditional fields based on institute lecture toggle */}
-            {isInstituteLecture ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="classId">Class (Optional)</Label>
-                  <Select 
-                    value={formData.classId || undefined} 
-                    onValueChange={(value) => handleInputChange('classId', value || '')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select class (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No specific class</SelectItem>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="subject">Subject (Optional)</Label>
-                  <Input
-                    id="subject"
-                    value={formData.subject}
-                    onChange={(e) => handleInputChange('subject', e.target.value)}
-                    placeholder="Enter subject (optional)"
-                  />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="timeStart" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Start Time
+                </Label>
+                <Input
+                  id="timeStart"
+                  type="datetime-local"
+                  value={formData.timeStart}
+                  onChange={(e) => handleInputChange('timeStart', e.target.value)}
+                  required
+                />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="classId">Class *</Label>
-                  <Select value={formData.classId || undefined} onValueChange={(value) => handleInputChange('classId', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls.id} value={cls.id}>
-                          {cls.name} ({cls.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                <div>
-                  <Label htmlFor="subjectId">Subject *</Label>
-                  <Select value={formData.subjectId || undefined} onValueChange={(value) => handleInputChange('subjectId', value)} disabled={!formData.classId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.name} ({subject.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="timeEnd" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  End Time
+                </Label>
+                <Input
+                  id="timeEnd"
+                  type="datetime-local"
+                  value={formData.timeEnd}
+                  onChange={(e) => handleInputChange('timeEnd', e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="isPublic"
+                checked={formData.isPublic}
+                onCheckedChange={(checked) => handleInputChange('isPublic', checked)}
+              />
+              <Label htmlFor="isPublic" className="text-sm font-medium">
+                Make this lecture public
+              </Label>
+            </div>
+
+            {formData.mode === 'online' && (
+              <div className="space-y-2">
+                <Label htmlFor="liveLink">Live Session Link (Optional)</Label>
+                <Input
+                  id="liveLink"
+                  placeholder="https://zoom.us/j/... or meeting link"
+                  value={formData.liveLink}
+                  onChange={(e) => handleInputChange('liveLink', e.target.value)}
+                />
               </div>
             )}
 
-            <div>
-              <Label htmlFor="instructorId">Instructor *</Label>
-              <Select value={formData.instructorId || undefined} onValueChange={(value) => handleInputChange('instructorId', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select instructor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teachers.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.firstName} {teacher.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="startTime">Start Time *</Label>
-                <Input
-                  id="startTime"
-                  type="datetime-local"
-                  value={formData.startTime}
-                  onChange={(e) => handleInputChange('startTime', e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="endTime">End Time *</Label>
-                <Input
-                  id="endTime"
-                  type="datetime-local"
-                  value={formData.endTime}
-                  onChange={(e) => handleInputChange('endTime', e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="venue">Venue</Label>
-                <Input
-                  id="venue"
-                  value={formData.venue}
-                  onChange={(e) => handleInputChange('venue', e.target.value)}
-                  placeholder={formData.lectureType === 'online' ? 'Online Platform' : 'Physical Location'}
-                />
-              </div>
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
                 <Label htmlFor="maxParticipants">Max Participants</Label>
                 <Input
                   id="maxParticipants"
                   type="number"
-                  value={formData.maxParticipants}
-                  onChange={(e) => handleInputChange('maxParticipants', parseInt(e.target.value))}
                   min="1"
+                  placeholder="30"
+                  value={formData.maxParticipants}
+                  onChange={(e) => handleInputChange('maxParticipants', parseInt(e.target.value) || 30)}
                 />
               </div>
-            </div>
 
-            {formData.lectureType === 'online' && (
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-lg font-medium">Online Meeting Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="meetingLink">Meeting Link</Label>
-                    <Input
-                      id="meetingLink"
-                      value={formData.meetingLink}
-                      onChange={(e) => handleInputChange('meetingLink', e.target.value)}
-                      placeholder="https://zoom.us/j/..."
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="meetingId">Meeting ID</Label>
-                    <Input
-                      id="meetingId"
-                      value={formData.meetingId}
-                      onChange={(e) => handleInputChange('meetingId', e.target.value)}
-                      placeholder="Meeting ID"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="meetingPassword">Meeting Password</Label>
+              {formData.mode === 'online' && (
+                <div className="space-y-2">
+                  <Label htmlFor="meetingPassword">Meeting Password (Optional)</Label>
                   <Input
                     id="meetingPassword"
+                    placeholder="Password for the meeting"
                     value={formData.meetingPassword}
                     onChange={(e) => handleInputChange('meetingPassword', e.target.value)}
-                    placeholder="Optional meeting password"
                   />
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
-                Cancel
+            <div className="space-y-2">
+              <Label htmlFor="recordingUrl">Recording URL (Optional)</Label>
+              <Input
+                id="recordingUrl"
+                placeholder="https://... (can be added later)"
+                value={formData.recordingUrl}
+                onChange={(e) => handleInputChange('recordingUrl', e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+              <Button type="submit" disabled={isLoading} className="flex-1">
+                {isLoading ? 'Creating...' : 'Create Lecture'}
               </Button>
-              <Button type="submit" disabled={loading}>
-                <Save className="h-4 w-4 mr-2" />
-                {loading ? 'Creating...' : 'Create Lecture'}
-              </Button>
+              {onClose && (
+                <Button type="button" variant="outline" onClick={onClose} className="flex-1">
+                  Cancel
+                </Button>
+              )}
             </div>
           </form>
         </CardContent>

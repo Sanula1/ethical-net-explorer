@@ -1,317 +1,381 @@
-
-import React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-
-const classSchema = z.object({
-  name: z.string().min(2, 'Class name must be at least 2 characters'),
-  code: z.string().min(1, 'Class code is required'),
-  academicYear: z.string().min(1, 'Academic year is required'),
-  level: z.string().min(1, 'Level is required'),
-  grade: z.string().min(1, 'Grade is required'),
-  specialty: z.string().min(1, 'Specialty is required'),
-  classType: z.string().min(1, 'Class type is required'),
-  capacity: z.string().min(1, 'Capacity is required'),
-  classTeacherId: z.string().optional(),
-  description: z.string().optional(),
-  startDate: z.string().min(1, 'Start date is required'),
-  endDate: z.string().min(1, 'End date is required'),
-  enrollmentCode: z.string().optional()
-});
-
-type ClassFormData = z.infer<typeof classSchema>;
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { getBaseUrl } from '@/contexts/utils/auth.api';
 
 interface CreateClassFormProps {
-  onSubmit: (data: ClassFormData) => void;
+  onSubmit: (data: any) => void;
   onCancel: () => void;
-  initialData?: any;
 }
 
-const CreateClassForm = ({ onSubmit, onCancel, initialData }: CreateClassFormProps) => {
-  const isEditing = !!initialData;
-  
-  const form = useForm<ClassFormData>({
-    resolver: zodResolver(classSchema),
-    defaultValues: {
-      name: initialData?.name || '',
-      code: initialData?.code || '',
-      academicYear: initialData?.academicYear || '2025-2026',
-      level: initialData?.level?.toString() || '1',
-      grade: initialData?.grade?.toString() || '',
-      specialty: initialData?.specialty || '',
-      classType: initialData?.classType || 'regular',
-      capacity: initialData?.capacity?.toString() || '',
-      classTeacherId: initialData?.classTeacherId || '',
-      description: initialData?.description || '',
-      startDate: initialData?.startDate ? initialData.startDate.split('T')[0] : '2025-09-01',
-      endDate: initialData?.endDate ? initialData.endDate.split('T')[0] : '2026-06-30',
-      enrollmentCode: initialData?.enrollmentCode || ''
-    }
+const CreateClassForm = ({ onSubmit, onCancel }: CreateClassFormProps) => {
+  const { user, selectedInstitute } = useAuth();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    academicYear: '',
+    level: 10,
+    grade: 10,
+    specialty: '',
+    classType: 'REGULAR',
+    capacity: 30,
+    classTeacherId: '',
+    description: '',
+    isActive: true,
+    startDate: '',
+    endDate: '',
+    enrollmentCode: '',
+    enrollmentEnabled: true,
+    requireTeacherVerification: true,
+    imageUrl: ''
   });
 
-  const handleSubmit = (data: ClassFormData) => {
-    onSubmit(data);
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const getApiHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'ngrok-skip-browser-warning': 'true'
+    };
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedInstitute?.id) {
+      toast({
+        title: "Missing Selection",
+        description: "Please select an institute first.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const classData = {
+        instituteId: selectedInstitute.id,
+        name: formData.name,
+        code: formData.code,
+        academicYear: formData.academicYear,
+        level: formData.level,
+        grade: formData.grade,
+        specialty: formData.specialty,
+        classType: formData.classType,
+        capacity: formData.capacity,
+        classTeacherId: formData.classTeacherId || undefined,
+        description: formData.description,
+        isActive: formData.isActive,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        enrollmentCode: formData.enrollmentCode,
+        enrollmentEnabled: formData.enrollmentEnabled,
+        requireTeacherVerification: formData.requireTeacherVerification,
+        imageUrl: formData.imageUrl
+      };
+
+      const response = await fetch(`${getBaseUrl()}/institute-classes`, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(classData)
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        toast({
+          title: "Class Created",
+          description: `Class "${formData.name}" has been created successfully.`
+        });
+        onSubmit(responseData);
+      } else {
+        throw new Error('Failed to create class');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Creation Failed",
+        description: error?.response?.data?.message || "Failed to create class.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle>{isEditing ? 'Edit Class' : 'Add New Class'}</CardTitle>
-        <CardDescription>{isEditing ? 'Update class information' : 'Enter class information to create a new record'}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Class Name *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Advanced Mathematics Class" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Class Code *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="MATH-ADV-2025" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="academicYear"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Academic Year *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="2025-2026" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="level"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Level *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select level" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="1">Level 1</SelectItem>
-                        <SelectItem value="2">Level 2</SelectItem>
-                        <SelectItem value="3">Level 3</SelectItem>
-                        <SelectItem value="4">Level 4</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="grade"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Grade *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select grade" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map(grade => (
-                          <SelectItem key={grade} value={grade.toString()}>
-                            Grade {grade}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="specialty"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Specialty *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select specialty" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="science">Science</SelectItem>
-                        <SelectItem value="commerce">Commerce</SelectItem>
-                        <SelectItem value="arts">Arts</SelectItem>
-                        <SelectItem value="mathematics">Mathematics</SelectItem>
-                        <SelectItem value="technology">Technology</SelectItem>
-                        <SelectItem value="general">General</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="classType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Class Type *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select class type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="regular">Regular</SelectItem>
-                        <SelectItem value="special">Special</SelectItem>
-                        <SelectItem value="advanced">Advanced</SelectItem>
-                        <SelectItem value="remedial">Remedial</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="capacity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Capacity *</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="1" placeholder="35" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="classTeacherId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Class Teacher ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Teacher ID (optional)" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start Date *</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>End Date *</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="enrollmentCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Enrollment Code</FormLabel>
-                    <FormControl>
-                      <Input placeholder="CTA123 (optional)" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+    <form onSubmit={handleSubmit} className="space-y-3 p-1">
+      {/* Compact: All in one section for mobile, two columns for larger screens */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Basic Info - Compact */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Basic Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="name" className="text-xs">Class Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Grade 10 Science - A"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="code" className="text-xs">Class Code</Label>
+                <Input
+                  id="code"
+                  placeholder="G10SA"
+                  value={formData.code}
+                  onChange={(e) => handleInputChange('code', e.target.value)}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="academicYear" className="text-xs">Academic Year</Label>
+                <Input
+                  id="academicYear"
+                  placeholder="2025/2026"
+                  value={formData.academicYear}
+                  onChange={(e) => handleInputChange('academicYear', e.target.value)}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="specialty" className="text-xs">Specialty</Label>
+                <Input
+                  id="specialty"
+                  placeholder="Science Stream"
+                  value={formData.specialty}
+                  onChange={(e) => handleInputChange('specialty', e.target.value)}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Details - Compact */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="level" className="text-xs">Level</Label>
+                <Input
+                  id="level"
+                  type="number"
+                  min="1"
+                  max="13"
+                  value={formData.level}
+                  onChange={(e) => handleInputChange('level', parseInt(e.target.value))}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="grade" className="text-xs">Grade</Label>
+                <Input
+                  id="grade"
+                  type="number"
+                  min="1"
+                  max="13"
+                  value={formData.grade}
+                  onChange={(e) => handleInputChange('grade', parseInt(e.target.value))}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="capacity" className="text-xs">Capacity</Label>
+              <Input
+                id="capacity"
+                type="number"
+                min="1"
+                max="100"
+                value={formData.capacity}
+                onChange={(e) => handleInputChange('capacity', parseInt(e.target.value))}
+                className="h-8 text-sm"
+                required
               />
             </div>
-            
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Advanced mathematics class for grade 11 students"
-                      className="min-h-[100px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <div className="flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {isEditing ? 'Update Class' : 'Create Class'}
-              </Button>
+            <div>
+              <Label htmlFor="classType" className="text-xs">Type</Label>
+              <Select value={formData.classType} onValueChange={(value) => handleInputChange('classType', value)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border z-50">
+                  <SelectItem value="REGULAR">Regular</SelectItem>
+                  <SelectItem value="ADVANCED">Advanced</SelectItem>
+                  <SelectItem value="REMEDIAL">Remedial</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Schedule & Enrollment - Combined */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Schedule</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="startDate" className="text-xs">Start Date</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => handleInputChange('startDate', e.target.value)}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate" className="text-xs">End Date</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => handleInputChange('endDate', e.target.value)}
+                  className="h-8 text-sm"
+                  required
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Enrollment</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div>
+              <Label htmlFor="enrollmentCode" className="text-xs">Code</Label>
+              <Input
+                id="enrollmentCode"
+                placeholder="2025"
+                value={formData.enrollmentCode}
+                onChange={(e) => handleInputChange('enrollmentCode', e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-1">
+                <Switch
+                  id="enrollmentEnabled"
+                  checked={formData.enrollmentEnabled}
+                  onCheckedChange={(checked) => handleInputChange('enrollmentEnabled', checked)}
+                />
+                <Label htmlFor="enrollmentEnabled">Enable</Label>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Switch
+                  id="requireTeacherVerification"
+                  checked={formData.requireTeacherVerification}
+                  onCheckedChange={(checked) => handleInputChange('requireTeacherVerification', checked)}
+                />
+                <Label htmlFor="requireTeacherVerification">Verify</Label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Info - Compact */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Additional Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+            <div>
+              <Label htmlFor="description" className="text-xs">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Class description..."
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                className="h-16 text-sm resize-none"
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <div>
+                <Label htmlFor="imageUrl" className="text-xs">Image URL</Label>
+                <Input
+                  id="imageUrl"
+                  placeholder="https://example.com/image.jpg"
+                  value={formData.imageUrl}
+                  onChange={(e) => handleInputChange('imageUrl', e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => handleInputChange('isActive', checked)}
+                />
+                <Label htmlFor="isActive" className="text-xs">Active Class</Label>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Compact button layout */}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={onCancel}
+          className="h-8 px-3 text-sm"
+        >
+          Cancel
+        </Button>
+        <Button 
+          type="submit" 
+          disabled={isLoading}
+          className="h-8 px-3 text-sm"
+        >
+          {isLoading ? 'Creating...' : 'Create'}
+        </Button>
+      </div>
+    </form>
   );
 };
 

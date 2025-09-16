@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import DataTable from '@/components/ui/data-table';
+import React, { useState } from 'react';
+import MUITable from '@/components/ui/mui-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Filter, Plus, Calendar, Clock, MapPin, Video, Users } from 'lucide-react';
+import { RefreshCw, Filter, Plus, Calendar, Clock, MapPin, Video, Users, ExternalLink, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth, type UserRole } from '@/contexts/AuthContext';
 import { AccessControl } from '@/utils/permissions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import CreateLectureForm from '@/components/forms/CreateLectureForm';
 import UpdateLectureForm from '@/components/forms/UpdateLectureForm';
 import { DataCardView } from '@/components/ui/data-card-view';
+import { useTableData } from '@/hooks/useTableData';
 import { cachedApiClient } from '@/api/cachedClient';
 
 interface LecturesProps {
@@ -19,14 +21,12 @@ interface LecturesProps {
 }
 
 const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
+  const navigate = useNavigate();
   const { user, selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId } = useAuth();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedLectureData, setSelectedLectureData] = useState<any>(null);
-  const [lecturesData, setLecturesData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   // Filter states
@@ -35,50 +35,62 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  const buildQueryParams = () => {
-    const params: Record<string, any> = {
-      page: 1,
-      limit: 100
-    };
+  const userRole = (user?.role || 'Student') as UserRole;
+  
+  // Enhanced pagination with useTableData hook
+  const tableData = useTableData({
+    endpoint: getEndpoint(),
+    defaultParams: buildDefaultParams(),
+    dependencies: [currentInstituteId, currentClassId, currentSubjectId, userRole],
+    pagination: {
+      defaultLimit: 50,
+      availableLimits: [25, 50, 100]
+    }
+  });
 
+  const { 
+    state: { data: lecturesData, loading: isLoading },
+    pagination,
+    actions
+  } = tableData;
+
+  const dataLoaded = lecturesData.length > 0;
+
+  function getEndpoint() {
+    if (userRole === 'Student') {
+      return '/institute-class-subject-lectures';
+    } else if (userRole === 'InstituteAdmin' || userRole === 'Teacher') {
+      if (currentInstituteId && currentClassId && currentSubjectId) {
+        return '/institute-class-subject-lectures';
+      }
+    }
+    return '/lectures';
+  }
+
+  function buildDefaultParams() {
+    const params: Record<string, any> = {};
+    
     // Add context-aware filtering
     if (currentInstituteId) {
       params.instituteId = currentInstituteId;
     }
-
     if (currentClassId) {
       params.classId = currentClassId;
     }
-
     if (currentSubjectId) {
       params.subjectId = currentSubjectId;
     }
-
-    // Add filter parameters
-    if (searchTerm.trim()) {
-      params.search = searchTerm.trim();
+    
+    // For Teachers, add instructorId parameter
+    if (userRole === 'Teacher' && user?.id) {
+      params.instructorId = user.id;
     }
-
-    if (statusFilter !== 'all') {
-      params.status = statusFilter;
-    }
-
-    if (typeFilter !== 'all') {
-      params.lectureType = typeFilter;
-    }
-
+    
     return params;
-  };
+  }
 
   const handleLoadData = async (forceRefresh = false) => {
-    if (!currentInstituteId) return;
-
-    const userRole = (user?.role || 'Student') as UserRole;
-    let endpoint = '';
-    const params = buildQueryParams();
-    
     if (userRole === 'Student') {
-      // For students: use the new API endpoint with required parameters
       if (!currentInstituteId || !currentClassId || !currentSubjectId) {
         toast({
           title: "Missing Selection",
@@ -87,104 +99,40 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
         });
         return;
       }
-      
-      endpoint = '/institute-class-subject-lectures';
-    } else if (userRole === 'InstituteAdmin') {
-      // For InstituteAdmin: use specific API based on current selection
-      if (currentInstituteId && currentClassId && currentSubjectId) {
-        // 4. Institute + Class + Subject selected
-        endpoint = '/institute-class-subject-lectures';
-      } else if (currentInstituteId && !currentClassId && !currentSubjectId) {
-        // 3. Only Institute selected
-        endpoint = '/institute-class-subject-lectures';
-      } else {
-        // Fallback to original API
-        endpoint = '/lectures';
-      }
-    } else {
-      // For other roles: use the original API
-      endpoint = '/lectures';
-    }
-
-    // Check if data exists in cache (only if not forcing refresh)
-    if (!forceRefresh) {
-      try {
-        const hasCache = await cachedApiClient.hasCache(endpoint, params);
-        if (hasCache) {
-          console.log('Data already exists in cache, skipping API call');
-          return;
-        }
-      } catch (error) {
-        console.warn('Error checking cache:', error);
-      }
-    }
-
-    setIsLoading(true);
-    console.log(`Loading lectures data for API level: ${apiLevel}`, { forceRefresh });
-    console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
-    
-    try {
-      console.log('Fetching lectures from endpoint:', endpoint, 'with params:', params);
-      
-      // Use cached API client
-      const result = await cachedApiClient.get(endpoint, params, { 
-        forceRefresh,
-        ttl: 10 // Cache lectures for 10 minutes (they change frequently)
-      });
-
-      console.log('Lectures loaded successfully:', result);
-      
-      // Handle both array response and paginated response
-      const lectures = Array.isArray(result) ? result : (result as any)?.data || [];
-      setLecturesData(lectures);
-      setDataLoaded(true);
-      setLastRefresh(new Date());
-      
-      if (forceRefresh) {
+    } else if (userRole === 'InstituteAdmin' || userRole === 'Teacher') {
+      if (!currentInstituteId || !currentClassId || !currentSubjectId) {
         toast({
-          title: "Data Refreshed",
-          description: `Successfully refreshed ${lectures.length} lectures.`
+          title: "Missing Selection",
+          description: "Please select institute, class, and subject to view lectures.",
+          variant: "destructive"
         });
+        return;
       }
-    } catch (error) {
-      console.error('Failed to load lectures:', error);
-      toast({
-        title: "Load Failed",
-        description: "Failed to load lectures data.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+    }
+
+    // Update filters and refresh data
+    const newFilters = buildDefaultParams();
+    actions.updateFilters(newFilters);
+    
+    if (forceRefresh) {
+      actions.refresh();
     }
   };
 
   const handleRefreshData = async () => {
     console.log('Force refreshing lectures data...');
-    await handleLoadData(true);
+    actions.refresh();
+    setLastRefresh(new Date());
   };
-
-  // Load data only when component mounts or context changes, but don't force refresh
-  useEffect(() => {
-    if (currentInstituteId) {
-      handleLoadData(false); // Never force refresh on navigation
-    }
-  }, [apiLevel, selectedInstitute, selectedClass, selectedSubject]);
-
-  // Load data when filters change (without refresh)
-  useEffect(() => {
-    if (currentInstituteId && dataLoaded) {
-      handleLoadData(false);
-    }
-  }, [searchTerm, statusFilter, typeFilter]);
 
   const handleCreateLecture = async () => {
     setIsCreateDialogOpen(false);
     // Force refresh after creating new lecture
-    await handleLoadData(true);
+    actions.refresh();
   };
 
   const handleEditLecture = async (lectureData: any) => {
-    console.log('Loading lecture for editing:', lectureData);
+    console.log('Opening update lecture dialog:', lectureData);
     setSelectedLectureData(lectureData);
     setIsEditDialogOpen(true);
   };
@@ -193,15 +141,14 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
     setIsEditDialogOpen(false);
     setSelectedLectureData(null);
     // Force refresh after updating lecture
-    await handleLoadData(true);
+    actions.refresh();
   };
+
 
   const handleDeleteLecture = async (lectureData: any) => {
     console.log('Deleting lecture:', lectureData);
     
     try {
-      setIsLoading(true);
-      
       // Use cached client for delete (will clear related cache)
       await cachedApiClient.delete(`/lectures/${lectureData.id}`);
 
@@ -214,7 +161,7 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
       });
       
       // Force refresh after deletion
-      await handleLoadData(true);
+      actions.refresh();
       
     } catch (error) {
       console.error('Error deleting lecture:', error);
@@ -223,8 +170,6 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
         description: "Failed to delete lecture. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -235,6 +180,7 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
       description: `Viewing lecture: ${lectureData.title}`
     });
   };
+
 
   const lecturesColumns = [
     { key: 'title', header: 'Title' },
@@ -251,13 +197,50 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
           {value}
         </Badge>
       )
-    }
+    },
+    ...((['InstituteAdmin', 'Teacher', 'Student'] as UserRole[]).includes(userRole) ? [{
+      key: 'meetingLink',
+      header: 'Join Lecture',
+      render: (value: string, row: any) => value ? (
+        <Button
+          size="sm"
+          variant="default"
+          className="bg-green-600 hover:bg-green-700 text-white"
+          onClick={() => window.open(value, '_blank')}
+        >
+          <ExternalLink className="h-3 w-3 mr-1" />
+          Join
+        </Button>
+      ) : (
+        <span className="text-gray-400">No link</span>
+      )
+    }, {
+      key: 'recordingUrl',
+      header: 'Recording',
+      render: (value: string, row: any) => {
+        // Check multiple possible field names for recording URL
+        const recUrl = value || row.recordingUrl || row.recording_url || row.recUrl || row.videoUrl || row.video_url;
+        return recUrl ? (
+          <Button
+            size="sm"
+            variant="default"
+            style={{ backgroundColor: '#3338A0', color: 'white' }}
+            className="hover:opacity-90"
+            onClick={() => window.open(recUrl, '_blank')}
+          >
+            <Video className="h-3 w-3 mr-1" />
+            View Rec
+          </Button>
+        ) : (
+          <span className="text-gray-400">No recording</span>
+        );
+      }
+    }] : [])
   ];
 
-  const userRole = (user?.role || 'Student') as UserRole;
   const canAdd = AccessControl.hasPermission(userRole, 'create-lecture');
-  const canEdit = AccessControl.hasPermission(userRole, 'edit-lecture');
-  const canDelete = AccessControl.hasPermission(userRole, 'delete-lecture');
+  const canEdit = userRole === 'Teacher' ? true : AccessControl.hasPermission(userRole, 'edit-lecture');
+  const canDelete = userRole === 'Teacher' ? true : AccessControl.hasPermission(userRole, 'delete-lecture');
 
   const getTitle = () => {
     const contexts = [];
@@ -437,17 +420,41 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
             </div>
           )}
 
-          {/* Desktop Table View */}
+          {/* Add Create Button for InstituteAdmin and Teacher */}
+          {(userRole === 'InstituteAdmin' || userRole === 'Teacher') && canAdd && (
+            <div className="flex justify-end mb-4">
+              <Button 
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Create Lecture
+              </Button>
+            </div>
+          )}
+
+           {/* Desktop MUI Table View */}
           <div className="hidden md:block">
-            <DataTable
+            <MUITable
               title=""
               data={lecturesData}
-              columns={lecturesColumns}
+              columns={lecturesColumns.map(col => ({
+                id: col.key,
+                label: col.header,
+                minWidth: 170,
+                format: col.render
+              }))}
               onAdd={canAdd ? () => setIsCreateDialogOpen(true) : undefined}
-              onEdit={canEdit ? handleEditLecture : undefined}
+              onEdit={userRole === 'InstituteAdmin' ? handleEditLecture : undefined}
               onDelete={canDelete ? handleDeleteLecture : undefined}
-              onView={handleViewLecture}
-              searchPlaceholder="Search lectures..."
+              page={pagination.page}
+              rowsPerPage={pagination.limit}
+              totalCount={pagination.totalCount}
+              onPageChange={(newPage: number) => actions.setPage(newPage)}
+              onRowsPerPageChange={(newLimit: number) => actions.setLimit(newLimit)}
+              sectionType="lectures"
+              allowEdit={userRole === 'InstituteAdmin'}
+              allowDelete={canDelete}
             />
           </div>
 
@@ -479,22 +486,22 @@ const Lectures = ({ apiLevel = 'institute' }: LecturesProps) => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
+      {/* Update Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Lecture</DialogTitle>
+            <DialogTitle>Update Lecture</DialogTitle>
           </DialogHeader>
-          <UpdateLectureForm
-            lecture={selectedLectureData}
-            onClose={() => {
-              setIsEditDialogOpen(false);
-              setSelectedLectureData(null);
-            }}
-            onSuccess={handleUpdateLecture}
-          />
+          {selectedLectureData && (
+            <UpdateLectureForm
+              lecture={selectedLectureData}
+              onClose={() => setIsEditDialogOpen(false)}
+              onSuccess={handleUpdateLecture}
+            />
+          )}
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };
