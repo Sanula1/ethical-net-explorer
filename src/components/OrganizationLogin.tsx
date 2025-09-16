@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
+import { Building2, Eye, EyeOff, ArrowLeft, Settings, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { organizationApi } from '@/api/organization.api';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface OrganizationLoginProps {
   onLogin?: (loginResponse: any) => void;
@@ -23,15 +24,19 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Load existing baseUrl2 from localStorage
+  // Initialize baseUrl2 from localStorage
+  React.useMemo(() => {
     const existingBaseUrl2 = localStorage.getItem('baseUrl2');
     if (existingBaseUrl2) {
       setBaseUrl2(existingBaseUrl2);
+    } else {
+      // If no URL is configured, show advanced settings by default
+      setShowAdvanced(true);
     }
   }, []);
 
   const validateUrl = (url: string): boolean => {
+    if (!url.trim()) return false;
     try {
       const urlObj = new URL(url);
       // Allow both HTTP and HTTPS for development/production flexibility
@@ -56,9 +61,10 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
     if (!baseUrl2) {
       toast({
         title: "Configuration Error",
-        description: "Please set the organization API base URL",
+        description: "Please set the organization API base URL in Advanced Settings",
         variant: "destructive",
       });
+      setShowAdvanced(true);
       return;
     }
 
@@ -79,8 +85,13 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
     try {
       const loginResponse = await organizationApi.loginToOrganization({ email, password });
       
-      // Store organization access token
-      localStorage.setItem('org_access_token', loginResponse.access_token);
+      // Store organization access token - organization API returns 'accessToken'
+      if (loginResponse.accessToken) {
+        localStorage.setItem('org_access_token', loginResponse.accessToken);
+        console.log('Organization access token stored successfully');
+      } else {
+        console.error('No access token received from organization login response');
+      }
       
       if (onLogin) {
         onLogin(loginResponse);
@@ -95,14 +106,18 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
       
       let errorMessage = "Login failed. Please check your credentials and try again.";
       if (error instanceof Error) {
-        if (error.message.includes('Mixed Content') || error.message.includes('Failed to fetch')) {
-          errorMessage = "Network error. Please check the API URL and ensure the server is accessible.";
+        if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+          errorMessage = `Cannot connect to the organization API at ${baseUrl2}. Please verify the server is running and the URL is correct.`;
+        } else if (error.message.includes('Mixed Content')) {
+          errorMessage = "Mixed content error. If using HTTPS, ensure the API URL also uses HTTPS.";
         } else if (error.message.includes('Organization base URL not configured')) {
-          errorMessage = "Please configure the organization API base URL.";
+          errorMessage = "Please configure the organization API base URL in Advanced Settings.";
         } else if (error.message.includes('HTTP Error: 404')) {
           errorMessage = "API endpoint not found. Please verify the base URL is correct.";
         } else if (error.message.includes('HTTP Error: 401')) {
           errorMessage = "Invalid credentials. Please check your email and password.";
+        } else {
+          errorMessage = error.message;
         }
       }
       
@@ -117,8 +132,8 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-8">
+      <Card className="w-full max-w-md mx-4">
         <CardHeader className="text-center">
           <div className="flex items-center justify-between mb-4">
             {onBack && (
@@ -132,15 +147,24 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
               </Button>
             )}
             <div className="flex items-center justify-center flex-1">
-              <Building2 className="h-12 w-12 text-blue-600" />
+              <Building2 className="h-10 w-10 sm:h-12 sm:w-12 text-blue-600" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Organization Login</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-xl sm:text-2xl font-bold">Organization Login</CardTitle>
+          <CardDescription className="text-sm sm:text-base">
             Sign in to access your organization's portal
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!baseUrl2 && (
+            <Alert className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Please configure the Organization API Base URL in Advanced Settings below.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -191,22 +215,28 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
                 >
                   <Settings className="h-4 w-4 mr-2" />
                   Advanced Settings
+                  {!baseUrl2 && <span className="ml-2 text-xs text-red-500">(Required)</span>}
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2">
                 <div className="space-y-2">
-                  <Label htmlFor="baseUrl2">Organization API Base URL</Label>
+                  <Label htmlFor="baseUrl2">Organization API Base URL *</Label>
                   <Input
                     id="baseUrl2"
                     type="text"
-                    placeholder="http://localhost:3000 or https://your-org-api.com"
+                    placeholder="https://your-org-api.com or https://your-backend-url.com"
                     value={baseUrl2}
                     onChange={(e) => setBaseUrl2(e.target.value)}
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    The base URL for your organization's API endpoint (supports both HTTP and HTTPS)
+                    The base URL for your organization's API endpoint. Make sure the server is running and accessible.
                   </p>
+                  {baseUrl2 && !validateUrl(baseUrl2) && (
+                    <p className="text-xs text-red-500">
+                      Invalid URL format. Please include http:// or https://
+                    </p>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -214,7 +244,7 @@ const OrganizationLogin = ({ onLogin, onBack }: OrganizationLoginProps) => {
             <Button 
               type="submit" 
               className="w-full"
-              disabled={isLoading}
+              disabled={isLoading || !baseUrl2 || !validateUrl(baseUrl2)}
             >
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>

@@ -1,314 +1,395 @@
 
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import React, { useState } from 'react';
+import DataTable from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RefreshCw, Filter, Calendar, Clock, MapPin, Users } from 'lucide-react';
+import { useAuth, type UserRole } from '@/contexts/AuthContext';
+import { AccessControl } from '@/utils/permissions';
+import { useToast } from '@/hooks/use-toast';
 import { DataCardView } from '@/components/ui/data-card-view';
-import { useAuth } from '@/contexts/AuthContext';
-import { Clock, Users, Video, Play } from 'lucide-react';
+import { cachedApiClient } from '@/api/cachedClient';
 
-interface LiveLecture {
-  id: string;
-  title: string;
-  instructor: string;
-  subject: string;
-  grade: string;
-  startTime: string;
-  duration: string;
-  attendees: number;
-  maxAttendees: number;
-  status: 'live' | 'starting-soon' | 'scheduled';
-  meetingUrl: string;
+interface LiveLecturesProps {
+  apiLevel?: 'institute' | 'class' | 'subject';
 }
 
-// Mock live lectures data with proper typing
-const mockLiveLectures: LiveLecture[] = [
-  {
-    id: '1',
-    title: 'Advanced Mathematics - Calculus Integration',
-    instructor: 'Dr. Sarah Johnson',
-    subject: 'Mathematics',
-    grade: 'Grade 12',
-    startTime: '2024-01-22T10:00:00Z',
-    duration: '60 min',
-    attendees: 45,
-    maxAttendees: 50,
-    status: 'live',
-    meetingUrl: 'https://meet.example.com/math-calc-123'
-  },
-  {
-    id: '2',
-    title: 'Physics - Quantum Mechanics Basics',
-    instructor: 'Prof. Michael Chen',
-    subject: 'Physics',
-    grade: 'Grade 11',
-    startTime: '2024-01-22T11:30:00Z',
-    duration: '45 min',
-    attendees: 32,
-    maxAttendees: 40,
-    status: 'starting-soon',
-    meetingUrl: 'https://meet.example.com/physics-quantum-456'
-  },
-  {
-    id: '3',
-    title: 'English Literature - Shakespeare Analysis',
-    instructor: 'Ms. Emily Watson',
-    subject: 'English',
-    grade: 'Grade 10',
-    startTime: '2024-01-22T14:00:00Z',
-    duration: '50 min',
-    attendees: 28,
-    maxAttendees: 35,
-    status: 'scheduled',
-    meetingUrl: 'https://meet.example.com/english-shakespeare-789'
-  }
-];
+const LiveLectures = ({ apiLevel = 'institute' }: LiveLecturesProps) => {
+  const { user, selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId } = useAuth();
+  const { toast } = useToast();
+  const [lecturesData, setLecturesData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-const LiveLectures = () => {
-  const { user } = useAuth();
-  const userRole = user?.role || 'Student';
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
 
-  const handleJoinLecture = (lecture: LiveLecture) => {
-    // In a real app, this would handle joining the live lecture
-    window.open(lecture.meetingUrl, '_blank');
+  const buildQueryParams = () => {
+    const params: Record<string, any> = {
+      page: 1,
+      limit: 10
+    };
+
+    // Add context-aware filtering for InstituteAdmin
+    if (user?.role === 'InstituteAdmin' && currentInstituteId) {
+      params.instituteId = currentInstituteId;
+      
+      if (currentClassId) {
+        params.classId = currentClassId;
+      }
+      
+      if (currentSubjectId) {
+        params.subjectId = currentSubjectId;
+      }
+    }
+
+    // Add filter parameters
+    if (searchTerm.trim()) {
+      params.search = searchTerm.trim();
+    }
+
+    if (statusFilter !== 'all') {
+      params.status = statusFilter;
+    }
+
+    if (typeFilter !== 'all') {
+      params.lectureType = typeFilter;
+    }
+
+    return params;
   };
 
-  const getStatusBadge = (status: LiveLecture['status']) => {
-    switch (status) {
-      case 'live':
-        return <Badge className="bg-red-500 hover:bg-red-600">🔴 Live</Badge>;
-      case 'starting-soon':
-        return <Badge className="bg-orange-500 hover:bg-orange-600">⏰ Starting Soon</Badge>;
-      case 'scheduled':
-        return <Badge variant="outline">📅 Scheduled</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
+  const handleLoadData = async (forceRefresh = false) => {
+    if (user?.role !== 'InstituteAdmin') {
+      toast({
+        title: "Access Denied",
+        description: "Only Institute Admins can view this data.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!currentInstituteId) {
+      toast({
+        title: "Selection Required",
+        description: "Please select an institute to view lectures.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const endpoint = '/institute-class-subject-lectures';
+    const params = buildQueryParams();
+    
+    setIsLoading(true);
+    console.log(`Loading lectures data for InstituteAdmin:`, { forceRefresh, params });
+    
+    try {
+      const result = await cachedApiClient.get(endpoint, params, { 
+        forceRefresh,
+        ttl: 10 // Cache lectures for 10 minutes
+      });
+
+      console.log('Lectures loaded successfully:', result);
+      
+      // Handle both array response and paginated response
+      const lectures = Array.isArray(result) ? result : (result as any)?.data || [];
+      setLecturesData(lectures);
+      setDataLoaded(true);
+      setLastRefresh(new Date());
+      
+      toast({
+        title: "Data Loaded",
+        description: `Successfully loaded ${lectures.length} lectures.`
+      });
+    } catch (error) {
+      console.error('Failed to load lectures:', error);
+      toast({
+        title: "Load Failed",
+        description: "Failed to load lectures data.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
+  const handleRefreshData = async () => {
+    console.log('Force refreshing lectures data...');
+    await handleLoadData(true);
+  };
+
+  const handleViewLecture = (lectureData: any) => {
+    console.log('View lecture:', lectureData);
+    toast({
+      title: "Lecture Viewed",
+      description: `Viewing lecture: ${lectureData.title}`
     });
   };
 
-  // Define columns for mobile card view
-  const tableColumns = [
-    {
-      key: 'title',
-      header: 'Title',
-      render: (value: any, row: LiveLecture) => (
-        <div>
-          <div className="font-medium">{value}</div>
-          <div className="text-sm text-gray-500">by {row.instructor}</div>
-        </div>
+  const lecturesColumns = [
+    { key: 'title', header: 'Title' },
+    { key: 'description', header: 'Description' },
+    { 
+      key: 'lectureType', 
+      header: 'Type',
+      render: (value: string) => (
+        <Badge variant={value === 'online' ? 'default' : 'secondary'}>
+          {value}
+        </Badge>
       )
     },
-    {
-      key: 'subject',
-      header: 'Subject',
-      render: (value: any, row: LiveLecture) => (
-        <div className="text-sm">
-          <div>{value}</div>
-          <div className="text-gray-500">{row.grade}</div>
-        </div>
-      )
+    { key: 'venue', header: 'Venue' },
+    { 
+      key: 'startTime', 
+      header: 'Start Time', 
+      render: (value: string) => value ? new Date(value).toLocaleString() : 'Not set'
     },
-    {
-      key: 'startTime',
-      header: 'Time',
-      render: (value: any, row: LiveLecture) => (
-        <div className="text-sm">
-          <div>{formatTime(value)}</div>
-          <div className="text-gray-500">{row.duration}</div>
-        </div>
-      )
+    { 
+      key: 'endTime', 
+      header: 'End Time', 
+      render: (value: string) => value ? new Date(value).toLocaleString() : 'Not set'
     },
-    {
-      key: 'attendees',
-      header: 'Attendees',
-      render: (value: any, row: LiveLecture) => `${value}/${row.maxAttendees}`
-    },
-    {
-      key: 'status',
+    { 
+      key: 'status', 
       header: 'Status',
-      render: (value: any) => getStatusBadge(value)
-    }
+      render: (value: string) => (
+        <Badge variant={
+          value === 'scheduled' ? 'default' : 
+          value === 'in_progress' ? 'secondary' : 
+          value === 'completed' ? 'outline' : 'destructive'
+        }>
+          {value}
+        </Badge>
+      )
+    },
+    { key: 'maxParticipants', header: 'Max Participants' }
   ];
 
-  const customActions = [
-    {
-      label: 'Join',
-      action: (lecture: LiveLecture) => handleJoinLecture(lecture),
-      icon: <Play className="h-3 w-3" />,
-      variant: 'default' as const
+  const userRole = (user?.role || 'Student') as UserRole;
+  const canView = user?.role === 'InstituteAdmin';
+
+  const getTitle = () => {
+    const contexts = [];
+    
+    if (selectedInstitute) {
+      contexts.push(selectedInstitute.name);
     }
-  ];
+    
+    if (selectedClass) {
+      contexts.push(selectedClass.name);
+    }
+    
+    if (selectedSubject) {
+      contexts.push(selectedSubject.name);
+    }
+    
+    let title = 'Live Lectures';
+    if (contexts.length > 0) {
+      title += ` (${contexts.join(' → ')})`;
+    }
+    
+    return title;
+  };
+
+  // Filter the lectures based on local filters for mobile view
+  const filteredLectures = lecturesData.filter(lecture => {
+    const matchesSearch = !searchTerm || 
+      Object.values(lecture).some(value => 
+        String(value).toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    
+    const matchesStatus = statusFilter === 'all' || 
+      lecture.status === statusFilter;
+    
+    const matchesType = typeFilter === 'all' || 
+      lecture.lectureType === typeFilter;
+    
+    return matchesSearch && matchesStatus && matchesType;
+  });
+
+  if (!canView) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            Access Denied
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Only Institute Admins can view live lectures data.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
-      <div className="text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Live Lectures
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Join live lectures and interactive sessions
-        </p>
-      </div>
-
-      {/* Mobile View Content - Always show card view */}
-      <div className="md:hidden">
-        <DataCardView
-          data={mockLiveLectures}
-          columns={tableColumns}
-          customActions={customActions}
-          allowEdit={false}
-          allowDelete={false}
-        />
-      </div>
-
-      {/* Desktop View */}
-      <div className="hidden md:block">
-        {userRole === 'Student' ? (
-          // Student view - Horizontal cards
-          <div className="space-y-4">
-            {mockLiveLectures.map((lecture) => (
-              <Card key={lecture.id} className="w-full">
-                <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {lecture.title}
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            by {lecture.instructor}
-                          </p>
-                        </div>
-                        {getStatusBadge(lecture.status)}
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          <span>{formatTime(lecture.startTime)} • {lecture.duration}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
-                          <span>{lecture.attendees}/{lecture.maxAttendees} attendees</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Video className="h-4 w-4" />
-                          <span>{lecture.subject} • {lecture.grade}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      {lecture.status === 'live' && (
-                        <Button 
-                          onClick={() => handleJoinLecture(lecture)}
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                          <Play className="h-4 w-4 mr-2" />
-                          Join Now
-                        </Button>
-                      )}
-                      {lecture.status === 'starting-soon' && (
-                        <Button 
-                          onClick={() => handleJoinLecture(lecture)}
-                          className="bg-orange-600 hover:bg-orange-700 text-white"
-                        >
-                          <Clock className="h-4 w-4 mr-2" />
-                          Join Soon
-                        </Button>
-                      )}
-                      {lecture.status === 'scheduled' && (
-                        <Button 
-                          variant="outline"
-                          onClick={() => handleJoinLecture(lecture)}
-                        >
-                          Set Reminder
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+    <div className="container mx-auto p-6 space-y-6">
+      {!dataLoaded ? (
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            {getTitle()}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            {!currentInstituteId
+              ? 'Please select institute to view lectures.'
+              : 'Click the button below to load lectures data'
+            }
+          </p>
+          <Button 
+            onClick={() => handleLoadData(false)} 
+            disabled={isLoading || !currentInstituteId}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {isLoading ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Loading Data...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Load Data
+              </>
+            )}
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                {getTitle()}
+              </h1>
+              {lastRefresh && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Last refreshed: {lastRefresh.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+              </Button>
+              <Button 
+                onClick={handleRefreshData} 
+                disabled={isLoading}
+                variant="outline"
+                size="sm"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh Data
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        ) : (
-          // Admin/Teacher view - Grid layout
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockLiveLectures.map((lecture) => (
-              <Card key={lecture.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg">{lecture.title}</CardTitle>
-                    {getStatusBadge(lecture.status)}
-                  </div>
-                  <CardDescription>
-                    by {lecture.instructor}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-gray-500" />
-                      <span>{formatTime(lecture.startTime)} • {lecture.duration}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-gray-500" />
-                      <span>{lecture.attendees}/{lecture.maxAttendees} attendees</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Video className="h-4 w-4 text-gray-500" />
-                      <span>{lecture.subject} • {lecture.grade}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleJoinLecture(lecture)}
-                    >
-                      Manage
-                    </Button>
-                    {lecture.status === 'live' && (
-                      <Button 
-                        size="sm"
-                        onClick={() => handleJoinLecture(lecture)}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        Join
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {mockLiveLectures.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No Live Lectures
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              There are currently no live lectures scheduled.
-            </p>
-          </CardContent>
-        </Card>
+          {/* Filter Controls */}
+          {showFilters && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Search Lectures
+                </label>
+                <Input
+                  placeholder="Search lectures..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Status
+                </label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                  Type
+                </label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="physical">Physical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setTypeFilter('all');
+                  }}
+                  className="w-full"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block">
+            <DataTable
+              title=""
+              data={lecturesData}
+              columns={lecturesColumns}
+              onView={handleViewLecture}
+              searchPlaceholder="Search lectures..."
+            />
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden">
+            <DataCardView
+              data={filteredLectures}
+              columns={lecturesColumns}
+              onView={handleViewLecture}
+              allowEdit={false}
+              allowDelete={false}
+            />
+          </div>
+        </>
       )}
     </div>
   );

@@ -1,503 +1,351 @@
 import React, { useState, useEffect } from 'react';
-import DataTable from '@/components/ui/data-table';
-import { Badge } from '@/components/ui/badge';
+import Paper from '@mui/material/Paper';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TablePagination from '@mui/material/TablePagination';
+import TableRow from '@mui/material/TableRow';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent } from '@/components/ui/card';
-import { DataCardView } from '@/components/ui/data-card-view';
-import { RefreshCw, Filter, Eye, Edit, Trash2, UserCheck } from 'lucide-react';
-import { useAuth, type UserRole } from '@/contexts/AuthContext';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { 
+  Users, 
+  RefreshCw, 
+  Search, 
+  Plus,
+  AlertTriangle,
+  User,
+  MapPin,
+  Phone
+} from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { AccessControl } from '@/utils/permissions';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { type UserRole } from '@/contexts/types/auth.types';
 import { useToast } from '@/hooks/use-toast';
+import { parentsApi, type InstituteParent, type InstituteParentsResponse } from '@/api/parents.api';
+import { useApiRequest } from '@/hooks/useApiRequest';
 import CreateParentForm from '@/components/forms/CreateParentForm';
-import { getBaseUrl } from '@/contexts/utils/auth.api';
-
-const mockParents = [
-  {
-    id: '1',
-    parentId: 'PAR001',
-    name: 'John Smith',
-    email: 'john.smith@example.com',
-    phone: '+1 (555) 123-4567',
-    relationship: 'Father',
-    children: 'Alice Smith',
-    address: '123 Main St, Anytown',
-    occupation: 'Engineer',
-    income: '$80,000',
-    educationLevel: 'Bachelor\'s Degree',
-    status: 'Active'
-  },
-  {
-    id: '2',
-    parentId: 'PAR002',
-    name: 'Emily Johnson',
-    email: 'emily.johnson@example.com',
-    phone: '+1 (555) 987-6543',
-    relationship: 'Mother',
-    children: 'Bob Johnson',
-    address: '456 Oak Ave, Anytown',
-    occupation: 'Teacher',
-    income: '$60,000',
-    educationLevel: 'Master\'s Degree',
-    status: 'Active'
-  },
-  {
-    id: '3',
-    parentId: 'PAR003',
-    name: 'Michael Brown',
-    email: 'michael.brown@example.com',
-    phone: '+1 (555) 456-7890',
-    relationship: 'Guardian',
-    children: 'Charlie Brown',
-    address: '789 Pine Ln, Anytown',
-    occupation: 'Accountant',
-    income: '$70,000',
-    educationLevel: 'Associate\'s Degree',
-    status: 'Inactive'
-  }
-];
 
 const Parents = () => {
-  const { user, selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId } = useAuth();
+  const { user, selectedInstitute } = useAuth();
   const { toast } = useToast();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedParent, setSelectedParent] = useState<any>(null);
-  const [parentsData, setParentsData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [parents, setParents] = useState<InstituteParent[]>([]);
+  const [filteredParents, setFilteredParents] = useState<InstituteParent[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [relationshipFilter, setRelationshipFilter] = useState('all');
-
-  const getAuthToken = () => {
-    const token = localStorage.getItem('access_token') || 
-                  localStorage.getItem('token') || 
-                  localStorage.getItem('authToken');
-    return token;
-  };
-
-  const getApiHeaders = () => {
-    const token = getAuthToken();
-    
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'ngrok-skip-browser-warning': 'true'
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return headers;
-  };
-
-  const buildQueryParams = () => {
-    const params = new URLSearchParams();
-
-    // Add context-aware filtering
-    if (currentInstituteId) {
-      params.append('instituteId', currentInstituteId);
-    }
-
-    if (currentClassId) {
-      params.append('classId', currentClassId);
-    }
-
-    if (currentSubjectId) {
-      params.append('subjectId', currentSubjectId);
-    }
-
-    return params;
-  };
-
-  const buildRequestBody = (additionalData: any = {}) => {
-    const body: any = { ...additionalData };
-
-    if (currentInstituteId) {
-      body.instituteId = currentInstituteId;
-    }
-
-    if (currentClassId) {
-      body.classId = currentClassId;
-    }
-
-    if (currentSubjectId) {
-      body.subjectId = currentSubjectId;
-    }
-
-    return body;
-  };
-
-  const handleLoadData = async () => {
-    setIsLoading(true);
-    console.log('Loading parents data...');
-    console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
-    
-    try {
-      const baseUrl = getBaseUrl();
-      const headers = getApiHeaders();
-      const params = buildQueryParams();
-      
-      // For now, simulate API call with mock data but in real scenario would be:
-      // const url = params.toString() ? `${baseUrl}/parents?${params}` : `${baseUrl}/parents`;
-      // const response = await fetch(url, { method: 'GET', headers });
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Filter mock data based on filters
-      let filteredData = mockParents;
-      
-      if (searchTerm) {
-        filteredData = filteredData.filter(parent =>
-          parent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          parent.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          parent.relationship.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-      
-      if (statusFilter !== 'all') {
-        filteredData = filteredData.filter(parent => parent.status === statusFilter);
-      }
-      
-      if (relationshipFilter !== 'all') {
-        filteredData = filteredData.filter(parent =>
-          parent.relationship.toLowerCase().includes(relationshipFilter.toLowerCase())
-        );
-      }
-      
-      setParentsData(filteredData);
-      setDataLoaded(true);
-      toast({
-        title: "Data Loaded",
-        description: `Successfully loaded ${filteredData.length} parents.`
-      });
-    } catch (error) {
-      toast({
-        title: "Load Failed",
-        description: "Failed to load parents data.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Define columns for mobile table/card view
-  const parentsColumns = [
-    { key: 'parentId', header: 'Parent ID' },
-    { key: 'name', header: 'Full Name' },
-    { key: 'email', header: 'Email' },
-    { key: 'phone', header: 'Phone' },
-    { key: 'relationship', header: 'Relationship' },
-    { key: 'children', header: 'Children' },
-    { key: 'address', header: 'Address' },
-    { key: 'occupation', header: 'Occupation' },
-    { key: 'income', header: 'Income' },
-    { key: 'educationLevel', header: 'Education Level' },
-    { 
-      key: 'status', 
-      header: 'Status',
-      render: (value: any) => (
-        <Badge variant={
-          value === 'Active' ? 'default' : 
-          value === 'Inactive' ? 'secondary' : 
-          'destructive'
-        }>
-          {value}
-        </Badge>
-      )
-    }
-  ];
-
-  const handleAddParent = () => {
-    console.log('Add new parent');
-  };
-
-  const handleEditParent = (parent: any) => {
-    console.log('Edit parent:', parent);
-    setSelectedParent(parent);
-    setIsEditDialogOpen(true);
-  };
-
-  const handleUpdateParent = (parentData: any) => {
-    console.log('Updating parent:', parentData);
-    
-    // In real scenario, would include context in request body:
-    // const requestBody = buildRequestBody(parentData);
-    
-    toast({
-      title: "Parent Updated",
-      description: `Parent ${parentData.name} has been updated successfully.`
-    });
-    setIsEditDialogOpen(false);
-    setSelectedParent(null);
-  };
-
-  const handleDeleteParent = (parent: any) => {
-    console.log('Delete parent:', parent);
-    toast({
-      title: "Parent Deleted",
-      description: `Parent ${parent.name} has been deleted.`,
-      variant: "destructive"
-    });
-  };
-
-  const handleViewParent = (parent: any) => {
-    console.log('View parent details:', parent);
-    toast({
-      title: "View Parent",
-      description: `Viewing parent: ${parent.name}`
-    });
-  };
-
-  const handleCreateParent = (parentData: any) => {
-    console.log('Creating parent:', parentData);
-    
-    // In real scenario, would include context in request body:
-    // const requestBody = buildRequestBody(parentData);
-    
-    toast({
-      title: "Parent Created",
-      description: `Parent ${parentData.name} has been created successfully.`
-    });
-    setIsCreateDialogOpen(false);
-  };
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [meta, setMeta] = useState({
+    total: 0,
+    page: 0,
+    limit: 50,
+    totalPages: 0
+  });
+  const [rowsPerPageOptions] = useState([25, 50, 100]);
 
   const userRole = (user?.role || 'Student') as UserRole;
-  const canAdd = AccessControl.hasPermission(userRole, 'create-parent');
-  const canEdit = AccessControl.hasPermission(userRole, 'edit-parent');
-  const canDelete = AccessControl.hasPermission(userRole, 'delete-parent');
+  const canViewParents = userRole === 'InstituteAdmin';
+  const canCreateParents = userRole === 'InstituteAdmin';
 
-  const getContextTitle = () => {
-    const contexts = [];
-    
-    if (selectedInstitute) {
-      contexts.push(selectedInstitute.name);
+  // API request hook
+  const { 
+    execute: fetchInstituteParents, 
+    loading 
+  } = useApiRequest(parentsApi.getInstituteParents);
+
+  const loadParents = async () => {
+    if (!selectedInstitute) {
+      toast({
+        title: "Selection Required",
+        description: "Please select an institute",
+        variant: "destructive",
+      });
+      return;
     }
-    
-    if (selectedClass) {
-      contexts.push(selectedClass.name);
+
+    try {
+      console.log('Fetching parents for institute:', selectedInstitute.id);
+      const response: InstituteParentsResponse = await fetchInstituteParents(selectedInstitute.id);
+      console.log('API Response:', response);
+      console.log('Parents data:', response.data);
+      console.log('Meta data:', response.meta);
+
+      setParents(response.data || []);
+      setFilteredParents(response.data || []);
+      // Add fallback for meta to prevent undefined errors
+      setMeta(response.meta || { total: 0, page: 0, limit: 50, totalPages: 0 });
+
+      console.log('State updated - parents:', response.data?.length || 0);
+
+      toast({
+        title: "Success",
+        description: `Loaded ${response.data?.length || 0} parents`,
+      });
+    } catch (error) {
+      console.error('Error loading parents:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load parents",
+        variant: "destructive",
+      });
     }
-    
-    if (selectedSubject) {
-      contexts.push(selectedSubject.name);
-    }
-    
-    let title = 'Parents & Guardians Management';
-    if (contexts.length > 0) {
-      title += ` (${contexts.join(' → ')})`;
-    }
-    
-    return title;
   };
 
-  const customActions = [
-    {
-      label: 'View',
-      action: (parent: any) => handleViewParent(parent),
-      icon: <Eye className="h-3 w-3" />,
-      variant: 'outline' as const
-    },
-    ...(canEdit ? [{
-      label: 'Edit',
-      action: (parent: any) => handleEditParent(parent),
-      icon: <Edit className="h-3 w-3" />,
-      variant: 'outline' as const
-    }] : []),
-    ...(canDelete ? [{
-      label: 'Delete',
-      action: (parent: any) => handleDeleteParent(parent),
-      icon: <Trash2 className="h-3 w-3" />,
-      variant: 'destructive' as const
-    }] : [])
-  ];
+  // Remove useEffect - only load data on button click
+
+  const handleSearch = (term: string) => {
+    const trimmed = term.trim();
+    setSearchTerm(trimmed);
+    if (trimmed) {
+      const filtered = parents.filter(parent =>
+        parent.name.toLowerCase().includes(trimmed.toLowerCase()) ||
+        (parent.addressLine2?.toLowerCase().includes(trimmed.toLowerCase()))
+      );
+      setFilteredParents(filtered);
+    } else {
+      setFilteredParents(parents);
+    }
+  };
+  const handleCreateParentSubmit = (data: any) => {
+    toast({
+      title: "Success",
+      description: "Parent created successfully",
+    });
+    setShowCreateDialog(false);
+    loadParents(); // Refresh the list
+  };
+
+  // Access control check
+  if (!canViewParents) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
+        <p className="text-muted-foreground">
+          You don't have permission to view parents. Only Institute Admins can access this section.
+        </p>
+      </div>
+    );
+  }
+
+  // Selection requirement check
+  if (!selectedInstitute) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <Users className="w-16 h-16 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Selection Required</h3>
+        <p className="text-muted-foreground">
+          Please select an institute to view parents.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {!dataLoaded ? (
-        <div className="text-center py-12">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            {getContextTitle()}
+    <div className="container mx-auto p-4 md:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <Users className="w-6 h-6 md:w-8 md:h-8" />
+            Institute Parents
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Click the button below to load parents data
-          </p>
-          <Button 
-            onClick={handleLoadData} 
-            disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {isLoading ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Loading Data...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Load Data
-              </>
-            )}
-          </Button>
+          <div className="text-sm md:text-base text-muted-foreground">
+            <p>Institute: <span className="font-medium">{selectedInstitute.name}</span></p>
+          </div>
         </div>
-      ) : (
-        <>
-          <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              {getContextTitle()}
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage parent and guardian information, communication preferences
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2"
-              >
-                <Filter className="h-4 w-4" />
-                Filters
-              </Button>
-            </div>
-            
-            <Button 
-              onClick={handleLoadData} 
-              disabled={isLoading}
-              variant="outline"
-              size="sm"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Refreshing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh Data
-                </>
-              )}
-            </Button>
-          </div>
-
-          {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border mb-6">
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Search Parents
-                </label>
-                <Input
-                  placeholder="Search parents..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full"
+        
+        <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+          <Button
+            onClick={loadParents}
+            disabled={loading}
+            variant="outline"
+            size="sm"
+            className="w-full sm:w-auto"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          
+          {canCreateParents && (
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="w-full sm:w-auto">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Parent
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create New Parent</DialogTitle>
+                  <DialogDescription>
+                    Add a new parent to the institute
+                  </DialogDescription>
+                </DialogHeader>
+                <CreateParentForm 
+                  onSubmit={handleCreateParentSubmit}
+                  onCancel={() => setShowCreateDialog(false)}
                 />
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Status
-                </label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Relationship
-                </label>
-                <Select value={relationshipFilter} onValueChange={setRelationshipFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Relationship" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Relationships</SelectItem>
-                    <SelectItem value="Father">Father</SelectItem>
-                    <SelectItem value="Mother">Mother</SelectItem>
-                    <SelectItem value="Guardian">Guardian</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+              </DialogContent>
+            </Dialog>
           )}
+        </div>
+      </div>
 
-          {/* Mobile View Content - Always Card View */}
-          <div className="md:hidden">
-            <DataCardView
-              data={parentsData}
-              columns={parentsColumns}
-              customActions={customActions}
-              allowEdit={false}
-              allowDelete={false}
-            />
-          </div>
+      {/* Search Bar */}
+      <div className="relative max-w-md">
+        <Input
+          type="text"
+          placeholder="Search parents..."
+          value={searchTerm}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="pl-10"
+        />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      </div>
 
-          {/* Desktop View */}
-          <div className="hidden md:block">
-            <DataTable
-              title="Parents & Guardians"
-              data={parentsData}
-              columns={parentsColumns}
-              onAdd={canAdd ? () => setIsCreateDialogOpen(true) : undefined}
-              onEdit={canEdit ? handleEditParent : undefined}
-              onDelete={canDelete ? handleDeleteParent : undefined}
-              onView={handleViewParent}
-              searchPlaceholder="Search parents..."
-              allowAdd={canAdd}
-              allowEdit={canEdit}
-              allowDelete={canDelete}
-            />
+      {/* Stats Card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base md:text-lg">Parent Statistics</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div className="text-xl md:text-2xl font-bold">{meta?.total || 0}</div>
+              <div className="text-xs md:text-sm text-muted-foreground">Total Parents</div>
+            </div>
+            <div>
+              <div className="text-xl md:text-2xl font-bold">{filteredParents.length}</div>
+              <div className="text-xs md:text-sm text-muted-foreground">Filtered Results</div>
+            </div>
+            <div>
+              <div className="text-xl md:text-2xl font-bold">{meta?.page || 1}</div>
+              <div className="text-xs md:text-sm text-muted-foreground">Current Page</div>
+            </div>
+            <div>
+              <div className="text-xl md:text-2xl font-bold">{meta?.totalPages || 0}</div>
+              <div className="text-xs md:text-sm text-muted-foreground">Total Pages</div>
+            </div>
           </div>
-        </>
+        </CardContent>
+      </Card>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex justify-center items-center py-8">
+          <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+          <span>Loading parents...</span>
+        </div>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create New Parent</DialogTitle>
-          </DialogHeader>
-          <CreateParentForm
-            onSubmit={handleCreateParent}
-            onCancel={() => setIsCreateDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Parent</DialogTitle>
-          </DialogHeader>
-          <CreateParentForm
-            initialData={selectedParent}
-            onSubmit={handleUpdateParent}
-            onCancel={() => {
-              setIsEditDialogOpen(false);
-              setSelectedParent(null);
+      {/* Parents MUI Table */}
+      {!loading && (
+        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <TableContainer sx={{ height: 'calc(100vh - 280px)' }}>
+            <Table stickyHeader aria-label="parents table">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Avatar</TableCell>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Phone</TableCell>
+                  <TableCell>Address</TableCell>
+                  <TableCell>Institute ID</TableCell>
+                  <TableCell>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredParents
+                  .slice(meta.page * meta.limit, meta.page * meta.limit + meta.limit)
+                  .map((parent) => (
+                  <TableRow hover role="checkbox" tabIndex={-1} key={parent.id}>
+                    <TableCell>
+                      <Avatar className="h-8 w-8 md:h-10 md:w-10">
+                        <AvatarImage 
+                          src={parent.imageUrl} 
+                          alt={parent.name}
+                        />
+                        <AvatarFallback>
+                          <User className="h-4 w-4" />
+                        </AvatarFallback>
+                      </Avatar>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium text-sm">
+                        {parent.id}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium text-sm md:text-base">
+                        {parent.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        {parent.phoneNumber || 'Not specified'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        {parent.addressLine2 || 'Not specified'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {parent.userIdByInstitute || 'Not assigned'}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={parent.verifiedBy ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {parent.verifiedBy ? 'Verified' : 'Unverified'}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredParents.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      <div className="text-center py-8">
+                        <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">No Parents Found</h3>
+                        <p className="text-muted-foreground">
+                          {searchTerm 
+                            ? `No parents match "${searchTerm}"`
+                            : 'No parents found for this institute'
+                          }
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={rowsPerPageOptions}
+            component="div"
+            count={filteredParents.length}
+            rowsPerPage={meta.limit}
+            page={meta.page}
+            onPageChange={(event: unknown, newPage: number) => {
+              setMeta(prev => ({ ...prev, page: newPage }));
+            }}
+            onRowsPerPageChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              const newLimit = parseInt(event.target.value, 10);
+              setMeta(prev => ({ ...prev, limit: newLimit, page: 0 }));
             }}
           />
-        </DialogContent>
-      </Dialog>
+        </Paper>
+      )}
     </div>
   );
 };

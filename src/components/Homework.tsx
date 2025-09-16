@@ -1,17 +1,21 @@
+
 import React, { useState, useEffect } from 'react';
-import DataTable from '@/components/ui/data-table';
+import MUITable from '@/components/ui/mui-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Filter, Plus, Calendar, Clock, FileText, CheckCircle } from 'lucide-react';
+import { RefreshCw, Filter, Plus, Calendar, Clock, BookOpen, FileText, Upload, ExternalLink, BarChart3, Eye, Edit, Users } from 'lucide-react';
 import { useAuth, type UserRole } from '@/contexts/AuthContext';
 import { AccessControl } from '@/utils/permissions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import CreateHomeworkForm from '@/components/forms/CreateHomeworkForm';
 import UpdateHomeworkForm from '@/components/forms/UpdateHomeworkForm';
+import SubmitHomeworkForm from '@/components/forms/SubmitHomeworkForm';
+import HomeworkDetailsDialog from '@/components/forms/HomeworkDetailsDialog';
 import { DataCardView } from '@/components/ui/data-card-view';
+import { useNavigate } from 'react-router-dom';
 import { cachedApiClient } from '@/api/cachedClient';
 
 interface HomeworkProps {
@@ -19,26 +23,49 @@ interface HomeworkProps {
 }
 
 const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
+  const navigate = useNavigate();
   const { user, selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId } = useAuth();
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  
   const [selectedHomeworkData, setSelectedHomeworkData] = useState<any>(null);
   const [homeworkData, setHomeworkData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
+  // Pagination states
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
+
+  // Auto-load data when pagination changes
+  useEffect(() => {
+    if (dataLoaded) {
+      handleLoadData(false);
+    }
+  }, [page, rowsPerPage, dataLoaded]);
+
+  // Auto-load data when context changes
+  useEffect(() => {
+    if (!dataLoaded) {
+      handleLoadData(false);
+    }
+  }, [selectedInstitute, selectedClass, selectedSubject, user?.id, dataLoaded]);
 
   const buildQueryParams = () => {
+    const userRole = (user?.role || 'Student') as UserRole;
     const params: Record<string, any> = {
-      page: 1,
-      limit: 100
+      page: page + 1, // MUI pagination is 0-based, API is 1-based
+      limit: rowsPerPage
     };
 
     // Add context-aware filtering
@@ -54,6 +81,11 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       params.subjectId = currentSubjectId;
     }
 
+    // For Teachers, add teacherId parameter
+    if (userRole === 'Teacher' && user?.id) {
+      params.teacherId = user.id;
+    }
+
     // Add filter parameters
     if (searchTerm.trim()) {
       params.search = searchTerm.trim();
@@ -63,36 +95,51 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       params.status = statusFilter;
     }
 
-    if (priorityFilter !== 'all') {
-      params.priority = priorityFilter;
-    }
-
     return params;
   };
 
   const handleLoadData = async (forceRefresh = false) => {
-    if (!currentInstituteId) return;
-
-    const endpoint = '/institute-class-subject-homeworks';
+    const userRole = (user?.role || 'Student') as UserRole;
+    let endpoint = '';
     const params = buildQueryParams();
     
-    // Check if data exists in cache (only if not forcing refresh)
-    if (!forceRefresh) {
-      try {
-        const hasCache = await cachedApiClient.hasCache(endpoint, params);
-        if (hasCache) {
-          console.log('Data already exists in cache, skipping API call');
-          return;
-        }
-      } catch (error) {
-        console.warn('Error checking cache:', error);
+    if (userRole === 'Student') {
+      // For students: use the specific API endpoint with required parameters
+      if (!currentInstituteId || !currentClassId || !currentSubjectId) {
+        toast({
+          title: "Missing Selection",
+          description: "Please select institute, class, and subject to view homework.",
+          variant: "destructive"
+        });
+        return;
       }
+      
+      endpoint = '/institute-class-subject-homeworks';
+    } else if (userRole === 'InstituteAdmin' || userRole === 'Teacher') {
+      // For InstituteAdmin and Teacher: use institute class subject homeworks API
+      if (currentInstituteId && currentClassId && currentSubjectId) {
+        endpoint = '/institute-class-subject-homeworks';
+      } else {
+        toast({
+          title: "Missing Selection",
+          description: "Please select institute, class, and subject to view homework.",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else {
+      // For other roles: use the original API
+      endpoint = '/homework';
     }
 
     setIsLoading(true);
-    console.log(`Loading homework data for API level: ${apiLevel}`, { forceRefresh });
+    console.log(`Loading homework data for role: ${userRole}`, { forceRefresh });
+    console.log(`Current context - Institute: ${selectedInstitute?.name}, Class: ${selectedClass?.name}, Subject: ${selectedSubject?.name}`);
     
     try {
+      console.log('Fetching homework from endpoint:', endpoint, 'with params:', params);
+      
+      // Use cached API client
       const result = await cachedApiClient.get(endpoint, params, { 
         forceRefresh,
         ttl: 15 // Cache homework for 15 minutes
@@ -102,14 +149,17 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       
       // Handle both array response and paginated response
       const homework = Array.isArray(result) ? result : (result as any)?.data || [];
+      const total = Array.isArray(result) ? result.length : (result as any)?.meta?.total || homework.length;
+      
       setHomeworkData(homework);
+      setTotalCount(total);
       setDataLoaded(true);
       setLastRefresh(new Date());
       
       if (forceRefresh) {
         toast({
           title: "Data Refreshed",
-          description: `Successfully refreshed ${homework.length} homework items.`
+          description: `Successfully refreshed ${homework.length} homework assignments.`
         });
       }
     } catch (error) {
@@ -129,20 +179,6 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
     await handleLoadData(true);
   };
 
-  // Load data only when component mounts or context changes, but don't force refresh
-  useEffect(() => {
-    if (currentInstituteId) {
-      handleLoadData(false); // Never force refresh on navigation
-    }
-  }, [apiLevel, selectedInstitute, selectedClass, selectedSubject]);
-
-  // Load data when filters change (without refresh)
-  useEffect(() => {
-    if (currentInstituteId && dataLoaded) {
-      handleLoadData(false);
-    }
-  }, [searchTerm, statusFilter, priorityFilter]);
-
   const handleCreateHomework = async () => {
     setIsCreateDialogOpen(false);
     // Force refresh after creating new homework
@@ -150,7 +186,7 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
   };
 
   const handleEditHomework = async (homeworkData: any) => {
-    console.log('Loading homework for editing:', homeworkData);
+    console.log('Opening update homework dialog:', homeworkData);
     setSelectedHomeworkData(homeworkData);
     setIsEditDialogOpen(true);
   };
@@ -196,32 +232,123 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
 
   const handleViewHomework = (homeworkData: any) => {
     console.log('View homework:', homeworkData);
-    toast({
-      title: "Homework Viewed",
-      description: `Viewing homework: ${homeworkData.title}`
-    });
+    setSelectedHomeworkData(homeworkData);
+    setIsViewDialogOpen(true);
   };
+
+  const handleSubmitHomework = (homeworkData: any) => {
+    console.log('Submit homework:', homeworkData);
+    setSelectedHomeworkData(homeworkData);
+    setIsSubmitDialogOpen(true);
+  };
+
+  const handleViewSubmissions = (homeworkData: any) => {
+    console.log('View homework submissions:', homeworkData);
+    navigate(`/homework/${homeworkData.id}/submissions`);
+  };
+
+  const handleSubmissionSuccess = async () => {
+    setIsSubmitDialogOpen(false);
+    setSelectedHomeworkData(null);
+    toast({
+      title: "Submission Successful",
+      description: "Your homework has been submitted successfully!"
+    });
+    // Force refresh after successful submission
+    await handleLoadData(true);
+  };
+
+  const userRole = (user?.role || 'Student') as UserRole;
+  const canAdd = AccessControl.hasPermission(userRole, 'create-homework');
+  const canEdit = userRole === 'Teacher' ? true : AccessControl.hasPermission(userRole, 'edit-homework');
+  const canDelete = userRole === 'Teacher' ? true : AccessControl.hasPermission(userRole, 'delete-homework');
+  const isStudent = userRole === 'Student';
 
   const homeworkColumns = [
     { key: 'title', header: 'Title' },
     { key: 'description', header: 'Description' },
-    { key: 'priority', header: 'Priority', render: (value: string) => <Badge variant="outline">{value}</Badge> },
-    { key: 'dueDate', header: 'Due Date', render: (value: string) => new Date(value).toLocaleDateString() },
+    { key: 'teacher', header: 'Teacher', render: (value: any) => value?.name || 'N/A' },
+    { key: 'startDate', header: 'Start Date', render: (value: string) => value ? new Date(value).toLocaleDateString() : 'N/A' },
+    { key: 'endDate', header: 'End Date', render: (value: string) => value ? new Date(value).toLocaleDateString() : 'N/A' },
+    ...((['InstituteAdmin', 'Teacher', 'Student'] as UserRole[]).includes(userRole) ? [{
+      key: 'referenceLink', 
+      header: 'Reference', 
+      render: (value: string, row: any) => value ? (
+        <Button
+          size="sm"
+          variant="default"
+          className="bg-blue-900 hover:bg-blue-800 text-white"
+          onClick={() => window.open(value, '_blank')}
+        >
+          <FileText className="h-3 w-3 mr-1" />
+          Reference
+        </Button>
+      ) : (
+        <span className="text-gray-400">No reference</span>
+      )
+    }] : []),
+    ...(userRole === 'InstituteAdmin' || userRole === 'Teacher' ? [{
+      key: 'submissions',
+      header: 'Submissions',
+      render: (value: any, row: any) => (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleViewSubmissions(row)}
+        >
+          <Users className="h-3 w-3 mr-1" />
+          View
+        </Button>
+      )
+    }] : []),
     { 
-      key: 'status', 
+      key: 'isActive', 
       header: 'Status',
-      render: (value: string) => (
-        <Badge variant={value === 'assigned' ? 'default' : value === 'submitted' ? 'secondary' : 'destructive'}>
-          {value}
+      render: (value: boolean) => (
+        <Badge variant={value ? 'default' : 'secondary'}>
+          {value ? 'Active' : 'Inactive'}
         </Badge>
       )
     }
   ];
 
-  const userRole = (user?.role || 'Student') as UserRole;
-  const canAdd = AccessControl.hasPermission(userRole, 'create-homework');
-  const canEdit = AccessControl.hasPermission(userRole, 'edit-homework');
-  const canDelete = AccessControl.hasPermission(userRole, 'delete-homework');
+  // Custom actions based on user role
+  const customActions = [
+    // Actions for InstituteAdmin and Teacher
+    ...((userRole === 'InstituteAdmin' || userRole === 'Teacher') ? [
+      {
+        label: '',
+        action: (homework: any) => handleViewHomework(homework),
+        icon: <Eye className="h-4 w-4" />,
+        variant: 'outline' as const,
+        tooltip: 'View details'
+      },
+      {
+        label: '',
+        action: (homework: any) => handleEditHomework(homework),
+        icon: <Edit className="h-4 w-4" />,
+        variant: 'outline' as const,
+        tooltip: 'Edit homework'
+      }
+    ] : []),
+    
+    // Actions for Students
+    ...(userRole === 'Student' ? [
+      {
+        label: '',
+        action: (homework: any) => handleViewHomework(homework),
+        icon: <Eye className="h-4 w-4" />,
+        variant: 'outline' as const,
+        tooltip: 'View details'
+      },
+      {
+        label: 'Submit',
+        action: (homework: any) => handleSubmitHomework(homework),
+        icon: <Upload className="h-3 w-3" />,
+        variant: 'default' as const
+      }
+    ] : [])
+  ];
 
   const getTitle = () => {
     const contexts = [];
@@ -254,12 +381,10 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
       );
     
     const matchesStatus = statusFilter === 'all' || 
-      homework.status === statusFilter;
+      (statusFilter === 'active' && homework.isActive) ||
+      (statusFilter === 'inactive' && !homework.isActive);
     
-    const matchesPriority = priorityFilter === 'all' || 
-      homework.priority === priorityFilter;
-    
-    return matchesSearch && matchesStatus && matchesPriority;
+    return matchesSearch && matchesStatus;
   });
 
   return (
@@ -270,14 +395,14 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
             {getTitle()}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {!currentInstituteId
-              ? 'Please select institute to view homework.'
+            {userRole === 'Student' && (!currentInstituteId || !currentClassId || !currentSubjectId)
+              ? 'Please select institute, class, and subject to view homework.'
               : 'Click the button below to load homework data'
             }
           </p>
           <Button 
             onClick={() => handleLoadData(false)} 
-            disabled={isLoading || !currentInstituteId}
+            disabled={isLoading || (userRole === 'Student' && (!currentInstituteId || !currentClassId || !currentSubjectId))}
             className="bg-blue-600 hover:bg-blue-700"
           >
             {isLoading ? (
@@ -361,39 +486,18 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="assigned">Assigned</SelectItem>
-                    <SelectItem value="submitted">Submitted</SelectItem>
-                    <SelectItem value="graded">Graded</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
-                  Priority
-                </label>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Priorities</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-end">
+              <div className="flex items-end col-span-2">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSearchTerm('');
                     setStatusFilter('all');
-                    setPriorityFilter('all');
                   }}
                   className="w-full"
                 >
@@ -403,17 +507,48 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
             </div>
           )}
 
+          {/* Add Create Button for InstituteAdmin and Teacher */}
+          {(userRole === 'InstituteAdmin' || userRole === 'Teacher') && canAdd && (
+            <div className="flex justify-end mb-4">
+              <Button 
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Create Homework
+              </Button>
+            </div>
+          )}
+
           {/* Desktop Table View */}
           <div className="hidden md:block">
-            <DataTable
+            <MUITable
               title=""
               data={homeworkData}
-              columns={homeworkColumns}
+              columns={homeworkColumns.map(col => ({
+                id: col.key,
+                label: col.header,
+                minWidth: 170,
+                format: col.render
+              }))}
               onAdd={canAdd ? () => setIsCreateDialogOpen(true) : undefined}
               onEdit={canEdit ? handleEditHomework : undefined}
-              onDelete={canDelete ? handleDeleteHomework : undefined}
               onView={handleViewHomework}
-              searchPlaceholder="Search homework..."
+              page={page}
+              rowsPerPage={rowsPerPage}
+              totalCount={totalCount}
+              onPageChange={(newPage: number) => {
+                setPage(newPage);
+                handleLoadData(false);
+              }}
+              onRowsPerPageChange={(newRowsPerPage: number) => {
+                setRowsPerPage(newRowsPerPage);
+                setPage(0);
+                handleLoadData(false);
+              }}
+              sectionType="homework"
+              allowEdit={canEdit}
+              allowDelete={canDelete}
             />
           </div>
 
@@ -425,6 +560,7 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
               onView={handleViewHomework}
               onEdit={canEdit ? handleEditHomework : undefined}
               onDelete={canDelete ? handleDeleteHomework : undefined}
+              customActions={customActions}
               allowEdit={canEdit}
               allowDelete={canDelete}
             />
@@ -434,33 +570,59 @@ const Homework = ({ apiLevel = 'institute' }: HomeworkProps) => {
 
       {/* Create Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create New Homework</DialogTitle>
           </DialogHeader>
-          <CreateHomeworkForm
-            onClose={() => setIsCreateDialogOpen(false)}
+          <CreateHomeworkForm 
             onSuccess={handleCreateHomework}
+            onClose={() => setIsCreateDialogOpen(false)}
           />
         </DialogContent>
       </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Homework</DialogTitle>
           </DialogHeader>
-          <UpdateHomeworkForm
-            homework={selectedHomeworkData}
-            onClose={() => {
-              setIsEditDialogOpen(false);
-              setSelectedHomeworkData(null);
-            }}
-            onSuccess={handleUpdateHomework}
-          />
+          {selectedHomeworkData && (
+            <UpdateHomeworkForm 
+              homework={selectedHomeworkData}
+              onSuccess={handleUpdateHomework}
+              onClose={() => setIsEditDialogOpen(false)}
+            />
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Submit Dialog */}
+      <Dialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Submit Homework</DialogTitle>
+          </DialogHeader>
+          {selectedHomeworkData && (
+            <SubmitHomeworkForm 
+              homework={selectedHomeworkData}
+              onSuccess={handleSubmissionSuccess}
+              onClose={() => setIsSubmitDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View Homework Details Dialog */}
+      <HomeworkDetailsDialog
+        isOpen={isViewDialogOpen}
+        onClose={() => {
+          setIsViewDialogOpen(false);
+          setSelectedHomeworkData(null);
+        }}
+        homework={selectedHomeworkData}
+      />
+
     </div>
   );
 };
