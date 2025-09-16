@@ -13,7 +13,6 @@ export interface Institute {
   state?: string;
   country?: string;
   pinCode?: string;
-  type?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -56,43 +55,6 @@ export interface Teacher {
   email: string;
   phone: string;
   userType: string;
-}
-
-export interface InstituteUser {
-  instituteId: string;
-  userId: string;
-  userIdByInstitute: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  institute: Institute;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phoneNumber: string;
-    userType: string;
-    dateOfBirth: string | null;
-    gender: string;
-    imageUrl: string | null;
-    isActive: boolean;
-    subscriptionPlan: string;
-    paymentExpiresAt: string | null;
-    createdAt: string;
-    nic: string;
-    birthCertificateNo: string;
-    addressLine1: string | null;
-    addressLine2: string | null;
-    city: string;
-    district: string;
-    province: string;
-    postalCode: string;
-    country: string;
-    updatedAt: string;
-    password: string;
-    idUrl: string | null;
-  };
 }
 
 export interface InstituteQueryParams {
@@ -147,57 +109,20 @@ class InstituteApi {
     });
   }
 
-  async getInstituteUsers(instituteId: string, forceRefresh = false): Promise<InstituteUser[]> {
-    console.log('Fetching institute users for institute:', instituteId, { forceRefresh });
-    const endpoint = `/institute-users/institute/${instituteId}/users`;
+  async getInstituteUsers(
+    instituteId: string, 
+    userType?: string, 
+    forceRefresh = false
+  ): Promise<ApiResponse<any[]>> {
+    const endpoint = '/institute-users';
+    const params: any = { instituteId };
+    if (userType) params.userType = userType;
     
-    return cachedApiClient.get<InstituteUser[]>(endpoint, undefined, { 
+    console.log('Fetching institute users:', params, { forceRefresh });
+    
+    return cachedApiClient.get<ApiResponse<any[]>>(endpoint, params, { 
       forceRefresh,
       ttl: 30, // Cache for 30 minutes since user data changes more frequently
-      useStaleWhileRevalidate: true
-    });
-  }
-
-  async getInstituteUsersByType(instituteId: string, userType: 'STUDENT' | 'TEACHER' | 'ATTENDANCE_MARKER', forceRefresh = false): Promise<{
-    data: Array<{
-      id: string;
-      name: string;
-      email?: string;
-      addressLine1?: string;
-      addressLine2?: string;
-      phoneNumber?: string;
-      imageUrl?: string;
-      dateOfBirth?: string;
-      userIdByInstitute?: string | null;
-      verifiedBy?: string | null;
-      fatherId?: string;
-      motherId?: string;
-      guardianId?: string;
-    }>;
-    meta: {
-      total: number;
-      page: number;
-      limit: number;
-      totalPages: number;
-    };
-  }> {
-    console.log('Fetching institute users by type:', { instituteId, userType, forceRefresh });
-    const endpoint = `/institute-users/institute/${instituteId}/users/${userType}`;
-    
-    return cachedApiClient.get(endpoint, undefined, { 
-      forceRefresh,
-      ttl: 30, // Cache for 30 minutes since user data changes more frequently
-      useStaleWhileRevalidate: true
-    });
-  }
-
-  async getClassSubjects(instituteId: string, classId: string, forceRefresh = false): Promise<ApiResponse<any[]>> {
-    console.log('Fetching class subjects:', { instituteId, classId, forceRefresh });
-    const endpoint = `/institutes/${instituteId}/classes/${classId}/subjects`;
-    
-    return cachedApiClient.get<ApiResponse<any[]>>(endpoint, undefined, { 
-      forceRefresh,
-      ttl: 60, // Cache for 1 hour
       useStaleWhileRevalidate: true
     });
   }
@@ -228,7 +153,7 @@ class InstituteApi {
         results.subjects = await cachedApiClient.hasCache(`/institute-class-subjects/institute/${instituteId}`);
 
         // Check if users are cached
-        results.users = await cachedApiClient.hasCache(`/institute-users/institute/${instituteId}/users`);
+        results.users = await cachedApiClient.hasCache('/institute-users', { instituteId });
       }
     } catch (error) {
       console.warn('Error checking cached data:', error);
@@ -242,13 +167,13 @@ class InstituteApi {
     institutes: Institute[] | null;
     classes: ApiResponse<Class[]> | null;
     subjects: any[] | null;
-    users: InstituteUser[] | null;
+    users: ApiResponse<any[]> | null;
   }> {
     const data = {
       institutes: null as Institute[] | null,
       classes: null as ApiResponse<Class[]> | null,
       subjects: null as any[] | null,
-      users: null as InstituteUser[] | null
+      users: null as ApiResponse<any[]> | null
     };
 
     try {
@@ -263,7 +188,7 @@ class InstituteApi {
         data.subjects = await cachedApiClient.getCachedOnly<any[]>(`/institute-class-subjects/institute/${instituteId}`);
 
         // Get cached users
-        data.users = await cachedApiClient.getCachedOnly<InstituteUser[]>(`/institute-users/institute/${instituteId}/users`);
+        data.users = await cachedApiClient.getCachedOnly<ApiResponse<any[]>>('/institute-users', { instituteId });
       }
     } catch (error) {
       console.warn('Error getting cached institute data:', error);
@@ -285,7 +210,7 @@ class InstituteApi {
         await Promise.all([
           cachedApiClient.preload('/institute-classes', { instituteId }, 60),
           cachedApiClient.preload(`/institute-class-subjects/institute/${instituteId}`, undefined, 60),
-          cachedApiClient.preload(`/institute-users/institute/${instituteId}/users`, undefined, 30)
+          cachedApiClient.preload('/institute-users', { instituteId }, 30)
         ]);
       });
 
@@ -308,7 +233,7 @@ class InstituteApi {
       await Promise.all([
         this.getInstituteClasses(instituteId, undefined, true),
         this.getInstituteClassSubjects(instituteId, undefined, true),
-        this.getInstituteUsers(instituteId, true)
+        this.getInstituteUsers(instituteId, undefined, true)
       ]);
     }
   }

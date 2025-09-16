@@ -1,13 +1,12 @@
+
 import { apiClient } from './client';
-import { getBaseUrl2, getApiHeaders } from '@/contexts/utils/auth.api';
+import { getBaseUrl2 } from '@/contexts/utils/auth.api';
 
 export interface Organization {
   organizationId: string;
   name: string;
   type: 'INSTITUTE' | 'GLOBAL';
   isPublic: boolean;
-  needEnrollmentVerification: boolean;
-  imageUrl: string | null;
   instituteId: string | null;
   userRole?: string;
   isVerified?: boolean;
@@ -27,19 +26,6 @@ export interface OrganizationCreateData {
   type: 'INSTITUTE' | 'GLOBAL';
   isPublic: boolean;
   enrollmentKey?: string;
-  needEnrollmentVerification?: boolean;
-  enabledEnrollments?: boolean;
-  imageUrl?: string;
-  instituteId?: string;
-}
-
-export interface OrganizationUpdateData {
-  name?: string;
-  isPublic?: boolean;
-  enrollmentKey?: string;
-  needEnrollmentVerification?: boolean;
-  enabledEnrollments?: boolean;
-  imageUrl?: string;
   instituteId?: string;
 }
 
@@ -79,18 +65,18 @@ export interface OrganizationLoginCredentials {
   password: string;
 }
 
-// Updated login response interface to match actual API response
+// Updated login response interface to match new API
 export interface OrganizationLoginResponse {
-  accessToken: string;
-  refreshToken: string;
+  access_token: string;
   user: {
     id: string;
     email: string;
     name: string;
-    organizations: Array<{
-      organizationId: string;
-      role: string;
-    }>;
+    isFirstLogin: boolean;
+  };
+  permissions: {
+    organizations: string[];
+    isGlobalAdmin: boolean;
   };
 }
 
@@ -99,12 +85,8 @@ export interface Course {
   causeId: string;
   title: string;
   description: string;
-  imageUrl?: string;
-  introVideoUrl?: string;
   isPublic: boolean;
   organizationId: string;
-  createdAt?: any;
-  updatedAt?: any;
 }
 
 export interface CourseResponse {
@@ -128,9 +110,6 @@ export interface CourseCreateData {
   title: string;
   description: string;
   organizationId: string;
-  introVideoUrl?: string;
-  isPublic?: boolean;
-  image?: File;
 }
 
 // Lecture interfaces
@@ -178,13 +157,83 @@ export interface LectureResponse {
   };
 }
 
+// New interfaces for member management
+export interface OrganizationMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  isVerified: boolean;
+  joinedAt: any;
+}
+
+export interface OrganizationMembersResponse {
+  members: OrganizationMember[];
+  totalMembers: number;
+  roleBreakdown: Record<string, number>;
+}
+
+export interface AssignRoleData {
+  userId: string;
+  role: string;
+}
+
+export interface AssignRoleResponse {
+  message: string;
+  userId: string;
+  organizationId: string;
+  role: string;
+  assignedAt: any;
+}
+
+export interface AssignInstituteData {
+  instituteId: string;
+}
+
+export interface AssignInstituteResponse {
+  success: boolean;
+  message: string;
+  timestamp: string;
+  operation: string;
+  organizationId: string;
+  instituteId: string;
+  performedBy: {
+    userId: string;
+    role: string | null;
+  };
+}
+
+export interface EnrollOrganizationData {
+  organizationId: string;
+  enrollmentKey?: string;
+}
+
+export interface EnrollOrganizationResponse {
+  organizationId: string;
+  userId: string;
+  role: string;
+  isVerified: boolean;
+  createdAt: any;
+  updatedAt: any;
+  user: {
+    userId: string;
+    email: string;
+    name: string;
+  };
+  organization: {
+    organizationId: string;
+    name: string;
+    type: string;
+  };
+}
+
 class OrganizationApiClient {
   private baseUrl = '/organization/api/v1';
 
   private checkBaseUrl2(): string {
     const baseUrl2 = getBaseUrl2();
     if (!baseUrl2) {
-      throw new Error('Organization API Base URL not configured. Please set the base URL in Advanced Settings.');
+      throw new Error('Organization base URL not configured. Please set baseUrl2 in the login form.');
     }
     return baseUrl2;
   }
@@ -192,25 +241,13 @@ class OrganizationApiClient {
   async loginToOrganization(credentials: OrganizationLoginCredentials): Promise<OrganizationLoginResponse> {
     try {
       // Check if baseUrl2 is configured
-      const baseUrl2 = this.checkBaseUrl2();
-      console.log('Using organization API base URL:', baseUrl2);
+      this.checkBaseUrl2();
       
       // Switch to baseUrl2 for organization API calls
       apiClient.setUseBaseUrl2(true);
       
       const response = await apiClient.post<OrganizationLoginResponse>(`${this.baseUrl}/auth/login`, credentials);
       return response;
-    } catch (error) {
-      console.error('Organization login failed:', error);
-      
-      // Provide more specific error messages
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
-          throw new Error('Cannot connect to organization API. Please verify the server is running and the base URL is correct.');
-        }
-      }
-      
-      throw error;
     } finally {
       // Always switch back to baseUrl1 after organization calls
       apiClient.setUseBaseUrl2(false);
@@ -291,28 +328,13 @@ class OrganizationApiClient {
 
   async createOrganization(data: OrganizationCreateData): Promise<Organization> {
     try {
-      // Ensure base URL 2 is configured (organization service)
       this.checkBaseUrl2();
-      const baseUrl2 = getBaseUrl2();
-      const url = `${baseUrl2}${this.baseUrl}/organizations`;
-
-      // IMPORTANT: Use MAIN login token (access_token) for creating organizations
-      const headers = getApiHeaders();
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `HTTP Error: ${response.status}` }));
-        throw new Error(errorData.message || `HTTP Error: ${response.status}`);
-      }
-
-      return await response.json();
+      apiClient.setUseBaseUrl2(true);
+      
+      const response = await apiClient.post<Organization>(`${this.baseUrl}/organizations`, data);
+      return response;
     } finally {
-      // No toggle of apiClient base since we used direct fetch
+      apiClient.setUseBaseUrl2(false);
     }
   }
 
@@ -321,7 +343,7 @@ class OrganizationApiClient {
       this.checkBaseUrl2();
       apiClient.setUseBaseUrl2(true);
       
-      const response = await apiClient.post<Course>(`${this.baseUrl}/causes/with-image`, data);
+      const response = await apiClient.post<Course>(`${this.baseUrl}/causes`, data);
       return response;
     } finally {
       apiClient.setUseBaseUrl2(false);
@@ -357,66 +379,55 @@ class OrganizationApiClient {
       this.checkBaseUrl2();
       apiClient.setUseBaseUrl2(true);
       
-      await apiClient.delete(`${this.baseUrl}/organizations/${id}/management`);
+      await apiClient.delete(`${this.baseUrl}/organizations/${id}`);
     } finally {
       apiClient.setUseBaseUrl2(false);
     }
   }
 
-  async enrollInOrganization(data: { organizationId: string; enrollmentKey?: string }): Promise<any> {
+  // New member management methods
+  async getOrganizationMembers(organizationId: string): Promise<OrganizationMembersResponse> {
     try {
       this.checkBaseUrl2();
       apiClient.setUseBaseUrl2(true);
       
-      const response = await apiClient.post(`${this.baseUrl}/organizations/enroll`, data);
+      const response = await apiClient.get<OrganizationMembersResponse>(`${this.baseUrl}/organizations/${organizationId}/management/members`);
       return response;
     } finally {
       apiClient.setUseBaseUrl2(false);
     }
   }
 
-  async transferPresidency(organizationId: string, data: { newPresidentUserId: string }): Promise<any> {
+  async assignRole(organizationId: string, data: AssignRoleData): Promise<AssignRoleResponse> {
     try {
       this.checkBaseUrl2();
       apiClient.setUseBaseUrl2(true);
       
-      const response = await apiClient.put(`${this.baseUrl}/organizations/${organizationId}/management/transfer-presidency`, data);
+      const response = await apiClient.post<AssignRoleResponse>(`${this.baseUrl}/organizations/${organizationId}/management/assign-role`, data);
       return response;
     } finally {
       apiClient.setUseBaseUrl2(false);
     }
   }
 
-  async updateOrganizationManagement(organizationId: string, data: OrganizationUpdateData): Promise<Organization> {
+  async assignInstitute(organizationId: string, data: AssignInstituteData): Promise<AssignInstituteResponse> {
     try {
       this.checkBaseUrl2();
       apiClient.setUseBaseUrl2(true);
       
-      const response = await apiClient.patch(`${this.baseUrl}/organizations/${organizationId}/management`, data);
+      const response = await apiClient.put<AssignInstituteResponse>(`${this.baseUrl}/organizations/${organizationId}/assign-institute`, data);
       return response;
     } finally {
       apiClient.setUseBaseUrl2(false);
     }
   }
 
-  async getUnverifiedMembers(organizationId: string): Promise<any> {
+  async enrollOrganization(data: EnrollOrganizationData): Promise<EnrollOrganizationResponse> {
     try {
       this.checkBaseUrl2();
       apiClient.setUseBaseUrl2(true);
       
-      const response = await apiClient.get(`${this.baseUrl}/organizations/${organizationId}/members/unverified`);
-      return response;
-    } finally {
-      apiClient.setUseBaseUrl2(false);
-    }
-  }
-
-  async verifyMember(organizationId: string, data: { userId: string; isVerified: boolean }): Promise<any> {
-    try {
-      this.checkBaseUrl2();
-      apiClient.setUseBaseUrl2(true);
-      
-      const response = await apiClient.put(`${this.baseUrl}/organizations/${organizationId}/verify`, data);
+      const response = await apiClient.post<EnrollOrganizationResponse>(`${this.baseUrl}/organizations/enroll`, data);
       return response;
     } finally {
       apiClient.setUseBaseUrl2(false);
@@ -494,68 +505,6 @@ class OrganizationSpecificApiClient {
     });
 
     return this.handleResponse<T>(response);
-  }
-
-  async put<T = any>(endpoint: string, data?: any): Promise<T> {
-    const baseUrl = this.getBaseUrl2();
-    const url = `${baseUrl}${endpoint}`;
-    
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: data ? JSON.stringify(data) : undefined
-    });
-
-    return this.handleResponse<T>(response);
-  }
-
-  async transferPresidency(organizationId: string, data: { newPresidentUserId: string }): Promise<any> {
-    const response = await this.put(`/organization/api/v1/organizations/${organizationId}/management/transfer-presidency`, data);
-    return response;
-  }
-
-  async patch<T = any>(endpoint: string, data?: any): Promise<T> {
-    const baseUrl = this.getBaseUrl2();
-    const url = `${baseUrl}${endpoint}`;
-    
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: this.getHeaders(),
-      body: data ? JSON.stringify(data) : undefined
-    });
-
-    return this.handleResponse<T>(response);
-  }
-
-  async delete<T = any>(endpoint: string, data?: any): Promise<T> {
-    const baseUrl = this.getBaseUrl2();
-    const url = `${baseUrl}${endpoint}`;
-    
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-      body: data ? JSON.stringify(data) : undefined
-    });
-
-    return this.handleResponse<T>(response);
-  }
-
-  async updateOrganizationManagement(organizationId: string, data: any): Promise<any> {
-    const response = await this.patch(`/organization/api/v1/organizations/${organizationId}/management`, data);
-    return response;
-  }
-
-  async removeUserFromOrganization(organizationId: string, data: { userId: string }): Promise<any> {
-    const baseUrl = this.getBaseUrl2();
-    const url = `${baseUrl}/organization/api/v1/organizations/${organizationId}/management/remove-user`;
-    
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data)
-    });
-
-    return this.handleResponse<any>(response);
   }
 }
 

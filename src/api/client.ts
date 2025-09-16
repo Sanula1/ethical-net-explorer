@@ -1,4 +1,5 @@
-import { getBaseUrl, getBaseUrl2, getApiHeaders } from '@/contexts/utils/auth.api';
+
+import { getBaseUrl, getBaseUrl2 } from '@/contexts/utils/auth.api';
 
 export interface ApiResponse<T = any> {
   data?: T;
@@ -30,18 +31,38 @@ class ApiClient {
     this.useBaseUrl2 = use;
   }
 
+  private getAuthToken(): string | null {
+    // For organization-specific calls, use org_access_token
+    if (this.useBaseUrl2) {
+      return localStorage.getItem('org_access_token');
+    }
+    
+    // Try multiple token storage keys for compatibility
+    return localStorage.getItem('access_token') || 
+           localStorage.getItem('token') || 
+           localStorage.getItem('authToken');
+  }
+
   private getCurrentBaseUrl(): string {
     return this.useBaseUrl2 ? getBaseUrl2() : getBaseUrl();
   }
 
   private getHeaders(): Record<string, string> {
-    const headers = getApiHeaders();
-    
-    // Add organization-specific token if using baseUrl2
-    if (this.useBaseUrl2) {
-      const orgToken = localStorage.getItem('org_access_token');
-      if (orgToken) {
-        headers['Authorization'] = `Bearer ${orgToken}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    };
+
+    // Always include bearer token if available
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log('Bearer token added to request headers');
+    } else {
+      // Only warn if not a login request (login requests don't need tokens)
+      const isLoginRequest = this.useBaseUrl2; // Organization login doesn't need existing token
+      if (!isLoginRequest) {
+        console.warn('No bearer token found in localStorage');
       }
     }
 
@@ -61,12 +82,11 @@ class ApiClient {
       // Handle authentication errors
       if (response.status === 401) {
         console.warn('Authentication failed - token may be expired');
-        // Clear invalid tokens
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('token');
-        localStorage.removeItem('authToken');
+        // Optionally clear invalid token
         if (this.useBaseUrl2) {
           localStorage.removeItem('org_access_token');
+        } else {
+          localStorage.removeItem('access_token');
         }
       }
       
@@ -109,26 +129,12 @@ class ApiClient {
     const url = `${baseUrl}${endpoint}`;
     
     console.log('POST Request:', url, data);
-    
-    const headers = this.getHeaders();
-    let body: any;
-    
-    // Handle FormData differently - don't stringify it and don't set Content-Type
-    if (data instanceof FormData) {
-      body = data;
-      // Remove Content-Type header to let browser set it with boundary
-      delete headers['Content-Type'];
-      console.log('FormData detected, removed Content-Type header');
-    } else {
-      body = data ? JSON.stringify(data) : undefined;
-    }
-    
-    console.log('Request Headers:', headers);
+    console.log('Request Headers:', this.getHeaders());
     
     const response = await fetch(url, {
       method: 'POST',
-      headers,
-      body
+      headers: this.getHeaders(),
+      body: data ? JSON.stringify(data) : undefined
     });
 
     return this.handleResponse<T>(response);

@@ -25,10 +25,7 @@ import {
   ArrowLeft,
   Notebook,
   Images,
-  Palette,
-  CreditCard,
-  Camera,
-  AlertCircle
+  Palette
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -43,626 +40,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   // Get menu items based on current selection state
   const getMenuItems = () => {
-    // Special handling for organization selection
-    if (selectedOrganization) {
-      return [
-        {
-          id: 'organizations',
-          label: 'Select Organizations',
-          icon: Building2,
-          permission: 'view-organizations',
-          alwaysShow: true
-        },
-        {
-          id: 'organization-gallery',
-          label: 'Gallery',
-          icon: Camera,
-          permission: 'view-organizations',
-          alwaysShow: true
-        },
-        {
-          id: 'organization-courses', 
-          label: 'Courses',
-          icon: BookOpen,
-          permission: 'view-organizations',
-          alwaysShow: true
-        }
-      ];
-    }
-
-    // Special handling for Student role
-    if (user?.role === 'Student') {
-      // 1. Student without institute - only show basic options + payment
-      if (!selectedInstitute) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Select Institutes',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'organizations',
-            label: 'Organizations',
-            icon: Building2,
-            permission: 'view-organizations',
-            alwaysShow: true
-          }
-        ];
-      }
-
-      // 2. Student with institute selected - show basic navigation
-      if (selectedInstitute && !selectedClass) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'my-attendance',
-            label: 'My Attendance',
-            icon: UserCheck,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'enroll-class',
-            label: 'Enroll Class',
-            icon: School,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'institute-lectures',
-            label: 'Institute Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // 3. Student with institute and class selected (but no subject) - remove enroll options
-      if (selectedInstitute && selectedClass && !selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'my-attendance',
-            label: 'My Attendance',
-            icon: UserCheck,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // 4. Student with institute, class, and subject all selected - show subject-specific navigation
-      if (selectedInstitute && selectedClass && selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'my-attendance',
-            label: 'My Attendance',
-            icon: UserCheck,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'lectures',
-            label: 'Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          },
-          {
-            id: 'homework',
-            label: 'Homework',
-            icon: Notebook,
-            permission: 'view-homework',
-            alwaysShow: false
-          },
-          {
-            id: 'exams',
-            label: 'Exams',
-            icon: Award,
-            permission: 'view-exams',
-            alwaysShow: false
-          },
-          {
-            id: 'results',
-            label: 'Results',
-            icon: ClipboardList,
-            permission: 'view-results',
-            alwaysShow: false
-          },
-          {
-            id: 'subject-payments',
-            label: 'Subject Payments',
-            icon: CreditCard,
-            permission: 'view-payments',
-            alwaysShow: false
-          },
-          {
-            id: 'subject-submissions',
-            label: 'Subject Submissions',
-            icon: FileText,
-            permission: 'view-submissions',
-            alwaysShow: false
-          },
-          {
-            id: 'homework-submissions',
-            label: 'Homework Submissions',
-            icon: Notebook,
-            permission: 'view-homework',
-            alwaysShow: false
-          }
-         ];
-      }
-    }
-
-    // Special handling for Teacher role
-    if (user?.role === 'Teacher') {
-      // 1. Teacher without institute - only show basic options + payment
-      if (!selectedInstitute) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Select Institutes',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'organizations',
-            label: 'Organizations',
-            icon: Building2,
-            permission: 'view-organizations',
-            alwaysShow: true
-          }
-        ];
-      }
-
-      // 2. Teacher with institute selected (but no class/subject)
-      if (selectedInstitute && !selectedClass && !selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'organizations',
-            label: 'Organizations',
-            icon: Building2,
-            permission: 'view-organizations',
-            alwaysShow: true
-          },
-          {
-            id: 'subjects',
-            label: 'All Subjects',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false,
-            section: 'Main\'s'
-          },
-          {
-            id: 'select-class',
-            label: 'Select Class',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'select-subject',
-            label: 'Select Subject',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'institute-lectures',
-            label: 'Institute Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // 3. Teacher with institute and class selected (but no subject)
-      if (selectedInstitute && selectedClass && !selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'select-class',
-            label: 'Select Class',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'select-subject',
-            label: 'Select Subject',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'students',
-            label: 'Students',
-            icon: GraduationCap,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-          {
-            id: 'unverified-students',
-            label: 'Unverified Students',
-            icon: AlertCircle,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-        ];
-      }
-
-      // 4. Teacher with institute, class, and subject all selected
-      if (selectedInstitute && selectedClass && selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'select-class',
-            label: 'Select Class',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'select-subject',
-            label: 'Select Subject',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'students',
-            label: 'Students',
-            icon: GraduationCap,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-          {
-            id: 'unverified-students',
-            label: 'Unverified Students',
-            icon: AlertCircle,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-          {
-            id: 'subject-payments',
-            label: 'Subject Payments',
-            icon: CreditCard,
-            permission: 'view-payments',
-            alwaysShow: false
-          }
-        ];
-      }
-    }
-
-    // Special handling for InstituteAdmin role
-    if (user?.role === 'InstituteAdmin') {
-      if (!selectedInstitute) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Select Institutes',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'organizations',
-            label: 'Organizations',
-            icon: Building2,
-            permission: 'view-organizations',
-            alwaysShow: true
-          }
-        ];
-      }
-
-      // If only institute is selected
-      if (selectedInstitute && !selectedClass && !selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'institute-users',
-            label: 'Institute Users',
-            icon: Users,
-            permission: 'view-users',
-            alwaysShow: false
-          },
-          {
-            id: 'parents',
-            label: 'Parents',
-            icon: Users,
-            permission: 'view-parents',
-            alwaysShow: false
-          },
-          {
-            id: 'classes',
-            label: 'All Classes',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'subjects',
-            label: 'All Subjects',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'select-class',
-            label: 'Select Class',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'select-subject',
-            label: 'Select Subject',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'institute-lectures',
-            label: 'Institute Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // If institute and class are selected (but not subject)
-      if (selectedInstitute && selectedClass && !selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'students',
-            label: 'Students',
-            icon: GraduationCap,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-          {
-            id: 'unverified-students',
-            label: 'Unverified Students',
-            icon: AlertCircle,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-          {
-            id: 'classes',
-            label: 'All Classes',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'subjects',
-            label: 'All Subjects',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'select-class',
-            label: 'Select Class',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'select-subject',
-            label: 'Select Subject',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // If institute, class, and subject are all selected
-      if (selectedInstitute && selectedClass && selectedSubject) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          },
-          {
-            id: 'students',
-            label: 'Students',
-            icon: GraduationCap,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-          {
-            id: 'unverified-students',
-            label: 'Unverified Students',
-            icon: AlertCircle,
-            permission: 'view-students',
-            alwaysShow: false
-          },
-          {
-            id: 'classes',
-            label: 'All Classes',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'subjects',
-            label: 'All Subjects',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'select-class',
-            label: 'Select Class',
-            icon: School,
-            permission: 'view-classes',
-            alwaysShow: false
-          },
-          {
-            id: 'select-subject',
-            label: 'Select Subject',
-            icon: BookOpen,
-            permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'subject-payments',
-            label: 'Subject Payments',
-            icon: CreditCard,
-            permission: 'view-payments',
-            alwaysShow: false
-          }
-        ];
-      }
-    }
-
-    // Special handling for Parent role
-    if (user?.role === 'Parent') {
-      // 1. Parent without child selected - only show Select Child
-      if (!selectedChild) {
-        return [
-          {
-            id: 'parents',
-            label: 'Select Child',
-            icon: Users,
-            permission: 'view-parents',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // 2. Parent with child selected - show main sections without institute navigation
-      if (selectedChild) {
-        return [
-          {
-            id: 'child-attendance',
-            label: 'Child Attendance',
-            icon: ClipboardList,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'child-results',
-            label: 'Child Results',
-            icon: Award,
-            permission: 'view-results',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      return [];
-    }
-
-    // Special handling for AttendanceMarker role - only show specific items when institute is selected
-    if (user?.role === 'AttendanceMarker') {
-      if (!selectedInstitute) {
-        return [
-          {
-            id: 'dashboard',
-            label: 'Select Institutes',
-            icon: LayoutDashboard,
-            permission: 'view-dashboard',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // For AttendanceMarker with institute selected - remove attendance sections
-      const baseItems = [
-        {
-          id: 'select-class',
-          label: 'Select Class',
-          icon: School,
-          permission: 'view-classes',
-          alwaysShow: false
-        },
-        {
-          id: 'select-subject',
-          label: 'Select Subject',
-          icon: BookOpen,
-          permission: 'view-subjects',
-          alwaysShow: false
-        }
-      ];
-      
-      // Add Free Lectures if subject is selected
-      if (selectedSubject) {
-        baseItems.push({
-          id: 'free-lectures',
-          label: 'Free Lectures',
-          icon: Video,
-          permission: 'view-lectures',
-          alwaysShow: false
-        });
-      }
-      
-      return baseItems;
-    }
-
-    // Base items that are always available for all other users
+    // Base items that are always available for all users
     const baseItems = [
       {
         id: 'dashboard',
@@ -685,7 +63,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
       return baseItems;
     }
 
-    // If institute is selected, show full navigation for other roles
+    // If institute is selected, show full navigation
     return [
       ...baseItems,
       {
@@ -758,567 +136,140 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
     ];
   };
 
-  const getAttendanceItems = () => {
-    // For Student - no additional attendance items needed as they are in main menu
-    if (user?.role === 'Student') {
-      return [];
+  const attendanceItems = [
+    {
+      id: 'attendance',
+      label: 'View Attendance',
+      icon: ClipboardList,
+      permission: 'view-attendance',
+      alwaysShow: false
+    },
+    {
+      id: 'attendance-marking',
+      label: 'Mark Attendance',
+      icon: UserCheck,
+      permission: 'mark-attendance',
+      alwaysShow: false
+    },
+    {
+      id: 'attendance-markers',
+      label: 'Attendance Markers',
+      icon: Users,
+      permission: 'manage-attendance-markers',
+      alwaysShow: false
+    },
+    {
+      id: 'qr-attendance',
+      label: 'QR Attendance',
+      icon: QrCode,
+      permission: 'mark-attendance',
+      alwaysShow: false
     }
+  ];
 
-    // For Teacher - show specific attendance items based on selection state
-    if (user?.role === 'Teacher') {
-      // 3. Teacher with institute and class selected (but no subject)
-      if (selectedInstitute && selectedClass && !selectedSubject) {
-        return [
-          {
-            id: 'daily-attendance',
-            label: 'Daily Attendance',
-            icon: UserCheck,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'attendance',
-            label: 'View Attendance',
-            icon: ClipboardList,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'qr-attendance',
-            label: 'QR Attendance',
-            icon: QrCode,
-            permission: 'mark-attendance',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // 4. Teacher with institute, class, and subject all selected
-      if (selectedInstitute && selectedClass && selectedSubject) {
-        return [
-          {
-            id: 'daily-attendance',
-            label: 'Daily Attendance',
-            icon: UserCheck,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'attendance',
-            label: 'View Attendance',
-            icon: ClipboardList,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'qr-attendance',
-            label: 'QR Attendance',
-            icon: QrCode,
-            permission: 'mark-attendance',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // For other teacher states, no attendance items
-      return [];
+  const systemItems = [
+    {
+      id: 'grading',
+      label: 'Grading',
+      icon: BarChart3,
+      permission: 'view-grading',
+      alwaysShow: false
+    },
+    {
+      id: 'live-lectures',
+      label: 'Live Lectures',
+      icon: Video,
+      permission: 'view-lectures',
+      alwaysShow: false
+    },
+    {
+      id: 'homework',
+      label: 'Homework',
+      icon: Notebook,
+      permission: 'view-homework',
+      alwaysShow: false
+    },
+    {
+      id: 'exams',
+      label: 'Exams',
+      icon: FileText,
+      permission: 'view-exams',
+      alwaysShow: false
+    },
+    {
+      id: 'results',
+      label: 'Results',
+      icon: ClipboardList,
+      permission: 'view-results',
+      alwaysShow: false
     }
+  ];
 
-    // For InstituteAdmin - show specific attendance items based on selection
-    if (user?.role === 'InstituteAdmin') {
-      if (!selectedInstitute) {
-        return [];
-      }
-
-      // For InstituteAdmin with only institute selected
-      if (selectedInstitute && !selectedClass && !selectedSubject) {
-        return [
-          {
-            id: 'daily-attendance',
-            label: 'Daily Attendance',
-            icon: UserCheck,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'attendance',
-            label: 'View Attendance',
-            icon: ClipboardList,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'qr-attendance',
-            label: 'QR Attendance',
-            icon: QrCode,
-            permission: 'mark-attendance',
-            alwaysShow: false
-          }
-        ];
-      }
-
-      // For InstituteAdmin with institute and class selected (or all three selected)
-      if (selectedInstitute && selectedClass) {
-        return [
-          {
-            id: 'daily-attendance',
-            label: 'Daily Attendance',
-            icon: UserCheck,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'attendance',
-            label: 'View Attendance',
-            icon: ClipboardList,
-            permission: 'view-attendance',
-            alwaysShow: false
-          },
-          {
-            id: 'qr-attendance',
-            label: 'QR Attendance',
-            icon: QrCode,
-            permission: 'mark-attendance',
-            alwaysShow: false
-          }
-        ];
-      }
+  // Teacher-specific items that require Institute + Class + Subject selection
+  const teacherSubjectItems = [
+    {
+      id: 'teacher-students',
+      label: 'Students',
+      icon: Users,
+      permission: 'view-students',
+      alwaysShow: false
+    },
+    {
+      id: 'teacher-homework',
+      label: 'Homework',
+      icon: Notebook,
+      permission: 'view-homework',
+      alwaysShow: false
+    },
+    {
+      id: 'teacher-exams',
+      label: 'Exams',
+      icon: FileText,
+      permission: 'view-exams',
+      alwaysShow: false
+    },
+    {
+      id: 'teacher-lectures',
+      label: 'Lectures',
+      icon: Video,
+      permission: 'view-lectures',
+      alwaysShow: false
     }
+  ];
 
-    // Default attendance items for other roles
-    const attendanceItems = [
-      {
-        id: 'daily-attendance',
-        label: 'Daily Attendance',
-        icon: UserCheck,
-        permission: 'view-attendance',
-        alwaysShow: false
-      },
-      {
-        id: 'attendance',
-        label: 'View Attendance',
-        icon: ClipboardList,
-        permission: 'view-attendance',
-        alwaysShow: false
-      },
-      {
-        id: 'attendance-markers',
-        label: 'Attendance Markers',
-        icon: Users,
-        permission: 'manage-attendance-markers',
-        alwaysShow: false
-      },
-      {
-        id: 'qr-attendance',
-        label: 'QR Attendance',
-        icon: QrCode,
-        permission: 'mark-attendance',
-        alwaysShow: user?.role === 'AttendanceMarker' // Always show for AttendanceMarker
-      }
-    ];
-
-    return attendanceItems;
-  };
-
-  const getSystemItems = () => {
-    // For Student - no additional system items needed as they are in main menu
-    if (user?.role === 'Student') {
-      return [];
+  const settingsItems = [
+    {
+      id: 'profile',
+      label: 'Profile',
+      icon: User,
+      permission: 'view-profile',
+      alwaysShow: false
+    },
+    {
+      id: 'appearance',
+      label: 'Appearance',
+      icon: Palette,
+      permission: 'view-appearance',
+      alwaysShow: false
+    },
+    ...(selectedInstitute ? [{
+      id: 'institute-details',
+      label: 'Institute Details',
+      icon: Building2,
+      permission: 'view-institute-details',
+      alwaysShow: false
+    }] : []),
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: Settings,
+      permission: 'view-settings',
+      alwaysShow: false
     }
-
-    // For Teacher - show academic items only when institute, class, and subject are all selected
-    if (user?.role === 'Teacher') {
-      if (selectedInstitute && selectedClass && selectedSubject) {
-        return [
-          {
-            id: 'lectures',
-            label: 'Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          },
-          {
-            id: 'free-lectures',
-            label: 'Free Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          },
-          {
-            id: 'homework',
-            label: 'Homework',
-            icon: Notebook,
-            permission: 'view-homework',
-            alwaysShow: false
-          },
-          {
-            id: 'exams',
-            label: 'Exams',
-            icon: FileText,
-            permission: 'view-exams',
-            alwaysShow: false
-          },
-          {
-            id: 'results',
-            label: 'Results',
-            icon: ClipboardList,
-            permission: 'view-results',
-            alwaysShow: false
-          }
-        ];
-      }
-      
-      // For other teacher selection states, return empty array
-      return [];
-    }
-
-    // For InstituteAdmin - show academic items when institute, class, and subject are all selected
-    if (user?.role === 'InstituteAdmin') {
-      if (selectedInstitute && selectedClass && selectedSubject) {
-        return [
-          {
-            id: 'lectures',
-            label: 'Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          },
-          {
-            id: 'free-lectures',
-            label: 'Free Lectures',
-            icon: Video,
-            permission: 'view-lectures',
-            alwaysShow: false
-          },
-          {
-            id: 'homework',
-            label: 'Homework',
-            icon: Notebook,
-            permission: 'view-homework',
-            alwaysShow: false
-          },
-          {
-            id: 'exams',
-            label: 'Exams',
-            icon: FileText,
-            permission: 'view-exams',
-            alwaysShow: false
-          },
-          {
-            id: 'results',
-            label: 'Results',
-            icon: ClipboardList,
-            permission: 'view-results',
-            alwaysShow: false
-          }
-        ];
-      }
-      
-      // For other InstituteAdmin selection states, return empty array
-      return [];
-    }
-
-    // Default system items for other roles
-    const systemItems = [
-      {
-        id: 'grading',
-        label: 'Grading',
-        icon: BarChart3,
-        permission: 'view-grading',
-        alwaysShow: false
-      },
-      {
-        id: 'live-lectures',
-        label: 'Live Lectures',
-        icon: Video,
-        permission: 'view-lectures',
-        alwaysShow: false
-      },
-      {
-        id: 'homework',
-        label: 'Homework',
-        icon: Notebook,
-        permission: 'view-homework',
-        alwaysShow: false
-      },
-      {
-        id: 'exams',
-        label: 'Exams',
-        icon: FileText,
-        permission: 'view-exams',
-        alwaysShow: false
-      },
-      {
-        id: 'results',
-        label: 'Results',
-        icon: ClipboardList,
-        permission: 'view-results',
-        alwaysShow: false
-      }
-    ];
-
-    return systemItems;
-  };
-
-  const getPaymentItems = () => {
-    // Only show payment sections for InstituteAdmin, Teacher, Student
-    if (!['InstituteAdmin', 'Teacher', 'Student'].includes(user?.role || '')) {
-      return [];
-    }
-
-    const paymentItems = [];
-
-    // 1. When only institute is selected - show Institute Payments for all three roles
-    // + My Submissions for Students only
-    if (selectedInstitute && !selectedClass && !selectedSubject) {
-      paymentItems.push({
-        id: 'institute-payments',
-        label: 'Institute Payments',
-        icon: CreditCard,
-        permission: 'view-profile',
-        alwaysShow: false
-      });
-
-      // Add My Submissions for Students only when only institute is selected
-      if (user?.role === 'Student') {
-        paymentItems.push({
-          id: 'my-submissions',
-          label: 'My Submissions',
-          icon: FileText,
-          permission: 'view-profile',
-          alwaysShow: false
-        });
-      }
-    }
-
-    // 3. When institute, class, and subject are all selected - show Subject Payments only
-    if (selectedInstitute && selectedClass && selectedSubject) {
-      paymentItems.push({
-        id: 'subject-payments',
-        label: 'Subject Payments',
-        icon: CreditCard,
-        permission: 'view-profile',
-        alwaysShow: false
-      });
-
-      // 4. Add Subject Pay Submission for Students only when all three are selected
-      if (user?.role === 'Student') {
-        paymentItems.push({
-          id: 'subject-pay-submission',
-          label: 'Subject Pay Submission',
-          icon: FileText,
-          permission: 'view-profile',
-          alwaysShow: false
-        });
-      }
-    }
-
-    return paymentItems;
-  };
-
-  const getSettingsItems = () => {
-    // If organization is selected, only show Profile and Appearance
-    if (selectedOrganization) {
-      return [
-        {
-          id: 'profile',
-          label: 'Profile',
-          icon: User,
-          permission: 'view-profile',
-          alwaysShow: false
-        },
-        {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: Palette,
-          permission: 'view-appearance',
-          alwaysShow: false
-        }
-      ];
-    }
-
-    // For Parent - show specific settings items based on child selection
-    if (user?.role === 'Parent') {
-      const baseItems = [
-        {
-          id: 'profile',
-          label: 'Profile',
-          icon: User,
-          permission: 'view-profile',
-          alwaysShow: false
-        },
-        {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: Palette,
-          permission: 'view-appearance',
-          alwaysShow: false
-        }
-      ];
-
-      // Add System Payment only when child is selected
-      if (selectedChild) {
-        baseItems.push({
-          id: 'system-payment',
-          label: 'System Payment',
-          icon: CreditCard,
-          permission: 'view-profile',
-          alwaysShow: false
-        });
-      }
-
-      return baseItems;
-    }
-
-    // For Student - always show Profile and Appearance + Payment if no institute
-    if (user?.role === 'Student') {
-      const baseItems = [
-        {
-          id: 'profile',
-          label: 'Profile',
-          icon: User,
-          permission: 'view-profile',
-          alwaysShow: false
-        },
-        {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: Palette,
-          permission: 'view-appearance',
-          alwaysShow: false
-        }
-      ];
-
-      // Add System Payment only when no institute is selected
-      if (!selectedInstitute) {
-        baseItems.push({
-          id: 'system-payment',
-          label: 'System Payment',
-          icon: CreditCard,
-          permission: 'view-profile', // Using existing permission
-          alwaysShow: false
-        });
-      }
-
-      return baseItems;
-    }
-
-    // For Teacher - show specific settings items based on selection state + Payment if no institute
-    if (user?.role === 'Teacher') {
-      const baseItems = [
-        {
-          id: 'profile',
-          label: 'Profile',
-          icon: User,
-          permission: 'view-profile',
-          alwaysShow: false
-        },
-        {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: Palette,
-          permission: 'view-appearance',
-          alwaysShow: false
-        }
-      ];
-
-      // Add System Payment only when no institute is selected
-      if (!selectedInstitute) {
-        baseItems.push({
-          id: 'system-payment',
-          label: 'System Payment',
-          icon: CreditCard,
-          permission: 'view-profile', // Using existing permission
-          alwaysShow: false
-        });
-      }
-
-      return baseItems;
-    }
-
-    // For InstituteAdmin - show specific settings items + Payment if no institute
-    if (user?.role === 'InstituteAdmin') {
-      const baseItems = [
-        {
-          id: 'profile',
-          label: 'Profile',
-          icon: User,
-          permission: 'view-profile',
-          alwaysShow: false
-        },
-        {
-          id: 'appearance',
-          label: 'Appearance',
-          icon: Palette,
-          permission: 'view-appearance',
-          alwaysShow: false
-        }
-      ];
-
-      // Add System Payment only when no institute is selected
-      if (!selectedInstitute) {
-        baseItems.push({
-          id: 'system-payment',
-          label: 'System Payment',
-          icon: CreditCard,
-          permission: 'view-profile', // Using existing permission
-          alwaysShow: false
-        });
-      } else {
-        // Add Institute Details when institute is selected
-        baseItems.push({
-          id: 'institute-details',
-          label: 'Institute Details',
-          icon: Building2,
-          permission: 'view-institute-details',
-          alwaysShow: false
-        });
-      }
-
-      return baseItems;
-    }
-
-    // Default settings items for other roles
-    const settingsItems = [
-      {
-        id: 'profile',
-        label: 'Profile',
-        icon: User,
-        permission: 'view-profile',
-        alwaysShow: false
-      },
-      {
-        id: 'appearance',
-        label: 'Appearance',
-        icon: Palette,
-        permission: 'view-appearance',
-        alwaysShow: false
-      },
-      ...(selectedInstitute ? [{
-        id: 'institute-details',
-        label: 'Institute Details',
-        icon: Building2,
-        permission: 'view-institute-details',
-        alwaysShow: false
-      }] : []),
-      {
-        id: 'settings',
-        label: 'Settings',
-        icon: Settings,
-        permission: 'view-settings',
-        alwaysShow: false
-      }
-    ];
-
-    return settingsItems;
-  };
+  ];
 
   const userRole = user?.role || 'Student';
   const menuItems = getMenuItems();
-  const attendanceItems = getAttendanceItems();
-  const systemItems = getSystemItems();
-  const paymentItems = getPaymentItems();
-  const settingsItems = getSettingsItems();
 
   const filterItemsByPermission = (items: any[]) => {
     return items.filter(item => {
@@ -1333,75 +284,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
   const handleItemClick = (itemId: string) => {
     console.log('Sidebar item clicked:', itemId);
-    
-    // Helper function for Router-agnostic navigation
-    const navigateToRoute = (route: string) => {
-      try {
-        window.history.pushState({}, '', route);
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      } catch (e) {
-        window.location.assign(route);
-      }
-    };
-    
-    // Handle System Payment click - navigate to payments page
-    if (itemId === 'system-payment') {
-      navigateToRoute('/payments');
-      onClose();
-      return;
-    }
-    
-    // Handle Institute Payments click
-    if (itemId === 'institute-payments') {
-      navigateToRoute('/institute-payments');
-      onClose();
-      return;
-    }
-    
-    // Handle Subject Payments click
-    if (itemId === 'subject-payments') {
-      navigateToRoute('/subject-payments');
-      onClose();
-      return;
-    }
-    
-    // Handle Subject Submissions click (for Students only)
-    if (itemId === 'subject-submissions') {
-      navigateToRoute('/subject-submissions');
-      onClose();
-      return;
-    }
-    
-    // Handle My Submissions click (for Students only)
-    if (itemId === 'my-submissions') {
-      navigateToRoute('/my-submissions');
-      onClose();
-      return;
-    }
-    
-    // Handle Subject Pay Submission click (for Students only)
-    if (itemId === 'subject-pay-submission') {
-      navigateToRoute('/subject-pay-submission');
-      onClose();
-      return;
-    }
-    
-    // Handle Enroll Class click (for Students only)
-    if (itemId === 'enroll-class') {
-      navigateToRoute('/enroll-class');
-      onPageChange('enroll-class');
-      onClose();
-      return;
-    }
-    
-    // Handle Enroll Subject click (for Students only) 
-    if (itemId === 'enroll-subject') {
-      navigateToRoute('/enroll-subject');
-      onPageChange('enroll-subject');
-      onClose();
-      return;
-    }
-    
     onPageChange(itemId);
     onClose();
   };
@@ -1473,12 +355,11 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 md:relative
+        fixed md:static inset-y-0 left-0 z-50
         w-72 sm:w-80 md:w-64 lg:w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-        transform transition-transform duration-300 ease-in-out md:transform-none
+        transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         flex flex-col h-screen
-        overflow-hidden
       `}>
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
@@ -1548,7 +429,7 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
                 <div className="text-blue-600 dark:text-blue-400">
                   <span className="font-medium">Child:</span> 
                   <span className="ml-1 truncate">
-                    {(selectedChild as any).name || (selectedChild.user ? `${selectedChild.user.firstName} ${selectedChild.user.lastName}` : 'Unknown Child')}
+                    {selectedChild.user.firstName} {selectedChild.user.lastName}
                   </span>
                 </div>
               )}
@@ -1559,54 +440,18 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
         {/* Navigation */}
         <ScrollArea className="flex-1 px-2 sm:px-3 py-3 sm:py-4">
           <div className="space-y-2">
-            {/* Main navigation items */}
-            <SidebarSection title="Main" items={menuItems.filter(item => !item.section)} />
-            
-            {/* Main's section for items with section property */}
-            {menuItems.some(item => item.section === "Main's") && (
-              <SidebarSection title="Main's" items={menuItems.filter(item => item.section === "Main's")} />
+            <SidebarSection title="Main" items={menuItems} />
+            {/* Only show attendance and academic sections if institute is selected */}
+            {selectedInstitute && (
+              <>
+                <SidebarSection title="Attendance" items={attendanceItems} />
+                <SidebarSection title="Academic" items={systemItems} />
+              </>
             )}
-            
-            {/* Show attendance section for Teacher based on selection state */}
-            {user?.role === 'Teacher' && attendanceItems.length > 0 && (
-              <SidebarSection title="Attendance" items={attendanceItems} />
+            {/* Teacher-specific section - only show when Institute, Class, and Subject are selected and user is Teacher */}
+            {selectedInstitute && selectedClass && selectedSubject && user?.role === 'Teacher' && (
+              <SidebarSection title="Subject Management" items={teacherSubjectItems} />
             )}
-            
-            {/* Show attendance section when institute is selected for InstituteAdmin */}
-            {user?.role === 'InstituteAdmin' && selectedInstitute && (
-              <SidebarSection title="Attendance" items={attendanceItems} />
-            )}
-            
-            {/* For AttendanceMarker role, only show QR Attendance when institute is selected */}
-            {user?.role === 'AttendanceMarker' && selectedInstitute && (
-              <SidebarSection title="Attendance" items={attendanceItems} />
-            )}
-            
-            {/* For other roles, show attendance navigation based on role */}
-            {user?.role !== 'AttendanceMarker' && user?.role !== 'InstituteAdmin' && user?.role !== 'Teacher' && user?.role !== 'Student' && selectedInstitute && (
-              <SidebarSection title="Attendance" items={attendanceItems} />
-            )}
-            
-            {/* Show academic items for Teacher only when institute, class and subject are all selected */}
-            {user?.role === 'Teacher' && systemItems.length > 0 && (
-              <SidebarSection title="Academic" items={systemItems} />
-            )}
-            
-            {/* Show academic items for InstituteAdmin only when institute, class and subject are all selected */}
-            {user?.role === 'InstituteAdmin' && selectedInstitute && selectedClass && selectedSubject && (
-              <SidebarSection title="Academic" items={systemItems} />
-            )}
-            
-            {/* Show full academic section for other roles (excluding Student) */}
-            {selectedInstitute && user?.role !== 'AttendanceMarker' && user?.role !== 'InstituteAdmin' && user?.role !== 'Teacher' && user?.role !== 'Student' && (
-              <SidebarSection title="Academic" items={systemItems} />
-            )}
-            
-            {/* Show Payment section for specific user types based on new rules */}
-            {paymentItems.length > 0 && (
-              <SidebarSection title="Payments" items={paymentItems} />
-            )}
-            
             <SidebarSection title="Settings" items={settingsItems} />
           </div>
         </ScrollArea>

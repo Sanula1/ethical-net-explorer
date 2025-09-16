@@ -124,7 +124,11 @@ const TeacherClasses = () => {
     }
   };
 
-  // Removed automatic API call - users must click Refresh to load data
+  useEffect(() => {
+    if (selectedInstitute?.id && user?.id) {
+      fetchTeacherClasses();
+    }
+  }, [selectedInstitute, user]);
 
   const handleSelectClass = (classData: TeacherClass) => {
     setSelectedClass({

@@ -1,257 +1,300 @@
-import * as React from 'react';
-import { useState, useCallback, useEffect } from 'react';
-import Paper from '@mui/material/Paper';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TablePagination from '@mui/material/TablePagination';
-import TableRow from '@mui/material/TableRow';
+
+import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RefreshCw, Users, MapPin, Calendar, Clock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { RefreshCw, Search, Filter, Calendar, User, Clock, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { instituteStudentsApi, StudentAttendanceRecord, StudentAttendanceResponse } from '@/api/instituteStudents.api';
-import { childAttendanceApi, ChildAttendanceRecord } from '@/api/childAttendance.api';
-import AttendanceFilters, { AttendanceFilterParams } from '@/components/AttendanceFilters';
 
-interface AttendanceColumn {
-  id: string;
-  label: string;
-  minWidth?: number;
-  align?: 'right' | 'left' | 'center';
-  format?: (value: any, record?: any) => React.ReactNode;
+interface AttendanceRecord {
+  instituteId: string;
+  classId: string | null;
+  subjectId: string | null;
+  studentId: string;
+  date: string;
+  timestamp: number;
+  status: 'PRESENT' | 'ABSENT' | 'LATE';
+  studentName: string;
+  location: string;
+  remarks: string;
+  markedBy: string;
+  PK: string;
+  SK: string;
+}
+
+interface AttendanceResponse {
+  records: AttendanceRecord[];
+  totalRecords: number;
+  scannedRecords: number;
+  uniqueStudents: number;
+  pagination: {
+    hasMore: boolean;
+    limit: number;
+  };
+  queryPattern: string;
+  queryType: string;
+  filters: {
+    instituteId: string;
+    classId?: string;
+    subjectId?: string;
+    studentId?: string;
+  };
 }
 
 const Attendance = () => {
   const { selectedInstitute, selectedClass, selectedSubject, currentInstituteId, currentClassId, currentSubjectId, user } = useAuth();
   const { toast } = useToast();
   
-  const [studentAttendanceRecords, setStudentAttendanceRecords] = useState<StudentAttendanceRecord[]>([]);
-  const [childAttendanceRecords, setChildAttendanceRecords] = useState<ChildAttendanceRecord[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   
-  // Enhanced pagination state with default of 50 and available options [25, 50, 100]
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(50);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const rowsPerPageOptions = [25, 50, 100];
-  
-  const [filters, setFilters] = useState<AttendanceFilterParams>({});
+  // Filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState('2025-08-12');
+  const [endDate, setEndDate] = useState('2025-08-13');
+  const [sortOrder, setSortOrder] = useState<string>('descending');
 
-  // Check permissions and get view type based on role and context
-  const getPermissionInfo = () => {
-    const userRole = user?.userType;
-    const userRoleAuth = user?.role; // From auth context
+  // Check permissions based on role and context
+  const getPermissionAndEndpoint = () => {
+    const userRole = user?.role;
     
-    // Student - No permission to view attendance
-    if (userRole === 'STUDENT') {
-      return {
-        hasPermission: false,
-        title: 'Attendance Access Restricted',
-        viewType: 'none',
-        description: 'Attendance viewing is not available for students'
-      };
-    }
-    
-    // 1. InstituteAdmin and AttendanceMarker - Institute level attendance (Institute only selected)
-    if ((userRole === 'INSTITUTE_ADMIN' || userRoleAuth === 'AttendanceMarker') && currentInstituteId && !currentClassId) {
+    // 1. SystemAdmin/InstituteAdmin - Institute attendance
+    if ((userRole === 'SystemAdmin' || userRole === 'InstituteAdmin') && currentInstituteId) {
       return {
         hasPermission: true,
-        title: 'Institute Student Attendance Overview',
-        viewType: 'institute',
-        description: 'View all students attendance records for the selected institute'
+        endpoint: `/api/attendance/institute/${currentInstituteId}`,
+        title: 'Institute Attendance Records'
       };
     }
     
-    // 2. InstituteAdmin, Teacher, and AttendanceMarker - Class attendance (Institute + Class selected)
-    if ((userRole === 'INSTITUTE_ADMIN' || userRole === 'TEACHER' || userRoleAuth === 'AttendanceMarker') && 
-        currentInstituteId && currentClassId && !currentSubjectId) {
+    // 2. SystemAdmin/InstituteAdmin/Teacher - Class attendance
+    if ((userRole === 'SystemAdmin' || userRole === 'InstituteAdmin' || userRole === 'Teacher') && 
+        currentInstituteId && currentClassId) {
       return {
         hasPermission: true,
-        title: 'Class Student Attendance Overview',
-        viewType: 'class',
-        description: 'View student attendance records for the selected class'
+        endpoint: `/api/attendance/class/${currentInstituteId}/${currentClassId}`,
+        title: 'Class Attendance Records'
       };
     }
     
-    // 3. InstituteAdmin, Teacher, and AttendanceMarker - Subject attendance (Institute + Class + Subject selected)
-    if ((userRole === 'INSTITUTE_ADMIN' || userRole === 'TEACHER' || userRoleAuth === 'AttendanceMarker') && 
+    // 3. SystemAdmin/InstituteAdmin/Teacher - Subject attendance
+    if ((userRole === 'SystemAdmin' || userRole === 'InstituteAdmin' || userRole === 'Teacher') && 
         currentInstituteId && currentClassId && currentSubjectId) {
       return {
         hasPermission: true,
-        title: 'Subject Student Attendance Overview',
-        viewType: 'subject',
-        description: 'View student attendance records for the selected subject'
+        endpoint: `/api/attendance/subject/${currentInstituteId}/${currentClassId}/${currentSubjectId}`,
+        title: 'Subject Attendance Records'
+      };
+    }
+    
+    // 4. Student - Their own attendance
+    if (userRole === 'Student' && currentInstituteId && user?.id) {
+      return {
+        hasPermission: true,
+        endpoint: `/api/attendance/student/${currentInstituteId}/${user.id}`,
+        title: 'My Attendance Records'
       };
     }
     
     return {
       hasPermission: false,
-      title: 'Student Attendance Records',
-      viewType: 'none',
-      description: 'Select the required context to view attendance records'
+      endpoint: '',
+      title: 'Attendance Records'
     };
   };
 
-  const { hasPermission, title, viewType, description } = getPermissionInfo();
+  const { hasPermission, endpoint, title } = getPermissionAndEndpoint();
 
-  // Define columns based on view type
-  const getColumns = (): AttendanceColumn[] => {
-    if (viewType === 'student') {
-      // For parent viewing child attendance
-      return [
-        { id: 'attendanceId', label: 'Attendance ID', minWidth: 120 },
-        { id: 'studentName', label: 'Student Name', minWidth: 170 },
-        { id: 'instituteName', label: 'Institute', minWidth: 170 },
-        { id: 'className', label: 'Class', minWidth: 100 },
-        { id: 'subjectName', label: 'Subject', minWidth: 130 },
-        { id: 'markedAt', label: 'Date & Time', minWidth: 150, format: (value) => new Date(value).toLocaleString() },
-        { id: 'markingMethod', label: 'Method', minWidth: 100 },
-        { 
-          id: 'status', 
-          label: 'Status', 
-          minWidth: 100,
-          format: (value) => (
-            <Badge variant={value === 'present' ? 'default' : value === 'late' ? 'secondary' : 'destructive'}>
-              {value?.toUpperCase()}
-            </Badge>
-          )
-        },
-        { id: 'markedBy', label: 'Marked By', minWidth: 130 }
-      ];
-    } else {
-      // For institute/class/subject attendance
-      return [
-        { id: 'studentCardId', label: 'Student ID', minWidth: 120 },
-        { id: 'studentName', label: 'Student Name', minWidth: 170 },
-        { id: 'instituteName', label: 'Institute', minWidth: 170 },
-        { id: 'className', label: 'Class', minWidth: 100 },
-        { id: 'subjectName', label: 'Subject', minWidth: 130 },
-        { id: 'lastAttendanceDate', label: 'Last Attendance', minWidth: 150, format: (value) => value ? new Date(value).toLocaleDateString() : 'Never' },
-        { id: 'attendanceCount', label: 'Total Days', minWidth: 100, align: 'right' as const },
-        { 
-          id: 'studentDetails', 
-          label: 'Status', 
-          minWidth: 100,
-          format: (value) => (
-            <Badge variant={value?.isActive ? 'default' : 'destructive'}>
-              {value?.isActive ? 'ACTIVE' : 'INACTIVE'}
-            </Badge>
-          )
-        }
-      ];
-    }
-  };
-
-  const handleFiltersChange = (newFilters: AttendanceFilterParams) => {
-    setFilters(newFilters);
-  };
-
-  const handleApplyFilters = () => {
-    console.log('Applying filters:', filters);
-    setPage(0);
-    loadStudentAttendanceData();
-  };
-
-  const handleClearFilters = () => {
-    setFilters({});
-    setPage(0);
-    loadStudentAttendanceData();
-  };
-
-  const handleChangePage = (event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(+event.target.value);
-    setPage(0);
-  };
-
-  // Enhanced data loading with proper pagination
-  const loadStudentAttendanceData = useCallback(async () => {
-    if (!hasPermission) return;
+  const getApiHeaders = () => {
+    const token = localStorage.getItem('access_token') || 
+                  localStorage.getItem('token') || 
+                  localStorage.getItem('authToken');
     
-    setIsLoading(true);
-    try {
-      const apiParams = {
-        page: page + 1, // API expects 1-based pagination
-        limit: rowsPerPage,
-        ...filters
-      };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
 
-      let response: StudentAttendanceResponse;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
 
-      if (viewType === 'institute' && currentInstituteId) {
-        response = await instituteStudentsApi.getInstituteStudentAttendance(currentInstituteId, apiParams);
-      } else if (viewType === 'class' && currentInstituteId && currentClassId) {
-        response = await instituteStudentsApi.getClassStudentAttendance(currentInstituteId, currentClassId, apiParams);
-      } else if (viewType === 'subject' && currentInstituteId && currentClassId && currentSubjectId) {
-        response = await instituteStudentsApi.getSubjectStudentAttendance(currentInstituteId, currentClassId, currentSubjectId, apiParams);
-      } else {
-        console.warn('Invalid view type or missing context for attendance data');
-        return;
-      }
+    return headers;
+  };
 
-      if (response.success) {
-        setStudentAttendanceRecords(response.data);
-        setTotalRecords(response.pagination.totalRecords);
-        setDataLoaded(true);
-        
-        toast({
-          title: "Data Loaded",
-          description: `Loaded ${response.data.length} attendance records`,
-        });
-      } else {
-        throw new Error(response.message || 'Failed to load attendance data');
-      }
-    } catch (error) {
-      console.error('Error loading attendance data:', error);
+  const loadAttendanceData = async () => {
+    if (!hasPermission) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to load attendance data",
-        variant: "destructive",
+        title: "Access Denied",
+        description: "You don't have permission to view attendance records.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    console.log('Loading attendance data from API:', endpoint);
+    
+    try {
+      const headers = getApiHeaders();
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        limit: '20',
+        startDate,
+        endDate
+      });
+      
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+      
+      const fullUrl = `${endpoint}?${params.toString()}`;
+      console.log('Full API URL:', fullUrl);
+      
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch attendance data: ${response.status}`);
+      }
+
+      const result: AttendanceResponse = await response.json();
+      console.log('Attendance data loaded successfully:', result);
+      
+      setAttendanceRecords(result.records);
+      setFilteredRecords(result.records);
+      setDataLoaded(true);
+      
+      toast({
+        title: "Data Loaded",
+        description: `Successfully loaded ${result.records.length} attendance records.`
+      });
+    } catch (error) {
+      console.error('Failed to load attendance data:', error);
+      toast({
+        title: "Load Failed",
+        description: "Failed to load attendance data from server.",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);
     }
-  }, [currentInstituteId, currentClassId, currentSubjectId, viewType, hasPermission, page, rowsPerPage, filters, toast]);
+  };
 
-  // Load data when dependencies change
+  // Apply filters and sorting
   useEffect(() => {
-    if (hasPermission) {
-      loadStudentAttendanceData();
+    let filtered = attendanceRecords;
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(record =>
+        record.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        record.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        record.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        record.location.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     }
-  }, [page, rowsPerPage, currentInstituteId, currentClassId, currentSubjectId, viewType]);
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return sortOrder === 'ascending' ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+    });
+
+    setFilteredRecords(filtered);
+  }, [attendanceRecords, searchTerm, sortOrder]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'PRESENT':
+        return 'bg-green-100 text-green-800';
+      case 'ABSENT':
+        return 'bg-red-100 text-red-800';
+      case 'LATE':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   const getCurrentSelection = () => {
-    const parts = [];
-    if (selectedInstitute) parts.push(`Institute: ${selectedInstitute.name}`);
-    if (selectedClass) parts.push(`Class: ${selectedClass.name}`);
-    if (selectedSubject) parts.push(`Subject: ${selectedSubject.name}`);
-    return parts.join(' → ') || 'No selection';
+    const selections = [];
+    if (selectedInstitute) selections.push(`Institute: ${selectedInstitute.name}`);
+    if (selectedClass) selections.push(`Class: ${selectedClass.name}`);
+    if (selectedSubject) selections.push(`Subject: ${selectedSubject.name}`);
+    return selections.join(', ');
   };
+
+  const parseLocation = (location: string) => {
+    try {
+      const parsed = JSON.parse(location);
+      return parsed.address || location;
+    } catch {
+      return location;
+    }
+  };
+
+  // Mobile Card Component
+  const AttendanceCard = ({ record }: { record: AttendanceRecord }) => (
+    <Card className="hover:shadow-md transition-shadow duration-200">
+      <CardHeader className="pb-3">
+        <div className="flex justify-between items-start">
+          <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+            Student: {record.studentName || record.studentId}
+          </CardTitle>
+          <Badge className={getStatusColor(record.status)}>
+            {record.status}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-blue-600" />
+            <span>Location: {parseLocation(record.location)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-blue-600" />
+            <span>Remarks: {record.remarks || 'No remarks'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-blue-600" />
+            <span>Marked By: {record.markedBy}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-blue-600" />
+            <span className="text-xs text-gray-500">
+              {new Date(record.date).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   if (!hasPermission) {
     return (
-      <div className="p-6">
+      <div className="container mx-auto p-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {title}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12">
-              <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">{title}</h3>
-              <p className="text-muted-foreground">{description}</p>
+          <CardContent className="text-center py-12">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Access Denied
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              You don't have permission to view attendance records or haven't selected the required context.
+            </p>
+            <div className="mt-4 text-sm text-gray-500">
+              Current Selection: {getCurrentSelection() || 'None'}
             </div>
           </CardContent>
         </Card>
@@ -259,24 +302,58 @@ const Attendance = () => {
     );
   }
 
-  const columns = getColumns();
-  const displayData = viewType === 'student' ? childAttendanceRecords : studentAttendanceRecords;
+  if (!dataLoaded) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="text-center py-12">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            {title}
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Current Selection: {getCurrentSelection()}
+          </p>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            View and manage attendance records
+          </p>
+          <Button 
+            onClick={loadAttendanceData} 
+            disabled={isLoading}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {isLoading ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Loading Data...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Load Attendance Data
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            {title}
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             Current Selection: {getCurrentSelection()}
           </p>
         </div>
         <Button 
-          onClick={loadStudentAttendanceData} 
+          onClick={loadAttendanceData} 
           disabled={isLoading}
           variant="outline"
-          className="shrink-0"
+          size="sm"
         >
           {isLoading ? (
             <>
@@ -286,120 +363,151 @@ const Attendance = () => {
           ) : (
             <>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh Data
+              Refresh
             </>
           )}
         </Button>
       </div>
 
-      {/* Filters Section */}
-      <AttendanceFilters
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        onApplyFilters={handleApplyFilters}
-        onClearFilters={handleClearFilters}
-      />
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search records..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="PRESENT">Present</SelectItem>
+                <SelectItem value="ABSENT">Absent</SelectItem>
+                <SelectItem value="LATE">Late</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Start Date */}
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+
+            {/* End Date */}
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+
+            {/* Sort Order */}
+            <Select value={sortOrder} onValueChange={setSortOrder}>
+              <SelectTrigger>
+                <SelectValue placeholder="Date" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="descending">Newest First</SelectItem>
+                <SelectItem value="ascending">Oldest First</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Records Summary */}
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Showing {filteredRecords.length} of {attendanceRecords.length} records
+        </p>
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Users className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Records</p>
-                <p className="text-2xl font-bold text-foreground">{totalRecords}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Calendar className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">View Type</p>
-                <p className="text-lg font-medium text-foreground capitalize">{viewType} Level</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Clock className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Current Page</p>
-                <p className="text-lg font-medium text-foreground">{page + 1} of {Math.ceil(totalRecords / rowsPerPage)}</p>
-              </div>
-            </div>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Student</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Remarks</TableHead>
+                  <TableHead>Marked By</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRecords.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                        No attendance records found
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400">
+                        No attendance records are available for the current selection.
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRecords.map((record, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{new Date(record.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="font-medium">{record.studentName || record.studentId}</TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(record.status)}>
+                          {record.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{parseLocation(record.location)}</TableCell>
+                      <TableCell>{record.remarks || '-'}</TableCell>
+                      <TableCell>{record.markedBy}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
 
-      {/* Enhanced MUI Data Table with Fixed Height */}
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer sx={{ height: 600 }}> {/* Fixed height for consistent display */}
-          <Table stickyHeader aria-label="attendance table">
-            <TableHead>
-              <TableRow>
-                {columns.map((column) => (
-                  <TableCell
-                    key={column.id}
-                    align={column.align}
-                    style={{ minWidth: column.minWidth }}
-                  >
-                    {column.label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {displayData.length > 0 ? (
-                displayData.map((record, index) => (
-                  <TableRow hover role="checkbox" tabIndex={-1} key={index}>
-                    {columns.map((column) => {
-                      const value = (record as any)[column.id];
-                      return (
-                        <TableCell key={column.id} align={column.align}>
-                          {column.format ? column.format(value, record) : value}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={columns.length} align="center">
-                    <div className="py-12 text-center text-muted-foreground">
-                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">No attendance records found</p>
-                      <p className="text-sm">{getCurrentSelection()}</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <TablePagination
-          rowsPerPageOptions={rowsPerPageOptions}
-          component="div"
-          count={totalRecords}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      </Paper>
+      {/* Mobile Cards View */}
+      <div className="md:hidden">
+        {filteredRecords.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                No attendance records found
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                No attendance records are available for the current selection.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {filteredRecords.map((record, index) => (
+              <AttendanceCard key={index} record={record} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

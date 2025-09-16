@@ -139,52 +139,11 @@ const Teachers = () => {
     try {
       const baseUrl = getBaseUrl();
       const headers = getApiHeaders();
-      
-      // For InstituteAdmin, use the new API endpoint to get institute teachers
-      if (user?.role === 'InstituteAdmin' && currentInstituteId) {
-        console.log('Loading institute teachers for InstituteAdmin...');
-        const url = `${baseUrl}/institute-users/institute/${currentInstituteId}/teachers`;
-        
-        const response = await fetch(url, { 
-          method: 'GET', 
-          headers 
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const apiData = await response.json();
-        console.log('API Response:', apiData);
-        
-        // Transform the API data to match the expected format
-        const transformedData = apiData.map((item: any) => ({
-          id: item.userId,
-          employeeId: item.userIdByInstitute || `EMP${item.userId}`,
-          name: item.user.name,
-          email: item.user.email,
-          phone: item.user.phoneNumber || 'N/A',
-          subjects: 'N/A', // This would need to come from a different endpoint
-          classes: 'N/A', // This would need to come from a different endpoint
-          qualification: 'N/A', // This would need additional data
-          experience: 'N/A', // This would need additional data
-          joinDate: new Date(item.user.createdAt).toLocaleDateString() || 'N/A',
-          status: item.status,
-          imageUrl: item.user.imageUrl
-        }));
-        
-        setTeachersData(transformedData);
-        setDataLoaded(true);
-        toast({
-          title: "Data Loaded",
-          description: `Successfully loaded ${transformedData.length} teachers from institute.`
-        });
-        
-        return;
-      }
-      
-      // For other roles, use mock data with filters
       const params = buildQueryParams();
+      
+      // For now, simulate API call with mock data but in real scenario would be:
+      // const url = params.toString() ? `${baseUrl}/teachers?${params}` : `${baseUrl}/teachers`;
+      // const response = await fetch(url, { method: 'GET', headers });
       
       // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -217,7 +176,6 @@ const Teachers = () => {
         description: `Successfully loaded ${filteredData.length} teachers.`
       });
     } catch (error) {
-      console.error('Error loading teachers:', error);
       toast({
         title: "Load Failed",
         description: "Failed to load teachers data.",
@@ -243,7 +201,7 @@ const Teachers = () => {
       header: 'Status',
       render: (value: any) => (
         <Badge variant={
-          value === 'Active' || value === 'ACTIVE' ? 'default' : 
+          value === 'Active' ? 'default' : 
           value === 'On Leave' ? 'secondary' : 
           'destructive'
         }>
@@ -464,7 +422,6 @@ const Teachers = () => {
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
                     <SelectItem value="On Leave">On Leave</SelectItem>
                     <SelectItem value="Inactive">Inactive</SelectItem>
                   </SelectContent>

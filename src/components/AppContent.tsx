@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useAppNavigation } from '@/hooks/useAppNavigation';
+import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import Sidebar from '@/components/layout/Sidebar';
@@ -9,21 +8,15 @@ import Users from '@/components/Users';
 import Students from '@/components/Students';
 import Teachers from '@/components/Teachers';
 import Parents from '@/components/Parents';
-import ChildAttendance from '@/components/ChildAttendance';
-import ChildResults from '@/components/ChildResults';
-
 import Grades from '@/components/Grades';
 import Classes from '@/components/Classes';
 import Subjects from '@/components/Subjects';
 import Institutes from '@/components/Institutes';
 import Grading from '@/components/Grading';
 import Attendance from '@/components/Attendance';
-import NewAttendance from '@/components/NewAttendance';
-import MyAttendance from '@/components/MyAttendance';
-
+import AttendanceMarking from '@/components/AttendanceMarking';
 import AttendanceMarkers from '@/components/AttendanceMarkers';
 import QRAttendance from '@/components/QRAttendance';
-import RFIDAttendance from '@/pages/RFIDAttendance';
 import Lectures from '@/components/Lectures';
 import LiveLectures from '@/components/LiveLectures';
 import Homework from '@/components/Homework';
@@ -51,63 +44,14 @@ import TeacherStudents from '@/components/TeacherStudents';
 import TeacherHomework from '@/components/TeacherHomework';
 import TeacherExams from '@/components/TeacherExams';
 import TeacherLectures from '@/components/TeacherLectures';
-import InstituteLectures from '@/components/InstituteLectures';
-import AttendanceMarkerSubjectSelector from '@/components/AttendanceMarkerSubjectSelector';
-import UnverifiedStudents from '@/components/UnverifiedStudents';
-import EnrollClass from '@/components/EnrollClass';
-import EnrollSubject from '@/components/EnrollSubject';
-import InstituteUsers from '@/components/InstituteUsers';
-import SetupGuide from '@/components/SetupGuide';
-import StudentHomeworkSubmissions from '@/components/StudentHomeworkSubmissions';
-import FreeLectures from '@/components/FreeLectures';
 
-interface AppContentProps {
-  initialPage?: string;
-}
-
-const AppContent = ({ initialPage }: AppContentProps) => {
+const AppContent = () => {
   const { user, login, selectedInstitute, selectedClass, selectedSubject, selectedChild, selectedOrganization, setSelectedOrganization, currentInstituteId } = useAuth();
-  const { navigateToPage, getPageFromPath } = useAppNavigation();
-  
-  // Initialize currentPage from URL or prop or default to dashboard
-  const [currentPage, setCurrentPageState] = useState(() => {
-    if (initialPage) return initialPage;
-    
-    // Get page from current URL path
-    try {
-      const pathname = window.location.pathname;
-      console.log('Getting page from pathname:', pathname);
-      
-      if (pathname === '/') return 'dashboard';
-      
-      // Handle nested routes
-      if (pathname.startsWith('/institutes/')) {
-        const parts = pathname.split('/');
-        if (parts[2] === 'users') return 'institute-users';
-        if (parts[2] === 'classes') return 'classes';
-        return 'institutes';
-      }
-      
-      // Remove leading slash and use as page name
-      const pageName = pathname.slice(1);
-      console.log('Final page name from URL:', pageName);
-      return pageName;
-    } catch (error) {
-      console.error('Error getting page from URL:', error);
-      return 'dashboard';
-    }
-  });
-  
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [organizationLoginData, setOrganizationLoginData] = useState<any>(null);
   const [showCreateOrgForm, setShowCreateOrgForm] = useState(false);
   const [organizationCurrentPage, setOrganizationCurrentPage] = useState('organizations');
-
-
-  const setCurrentPage = (page: string) => {
-    setCurrentPageState(page);
-    navigateToPage(page);
-  };
 
   const handleMenuClick = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -171,157 +115,83 @@ const AppContent = ({ initialPage }: AppContentProps) => {
 
     const userRole = user?.role;
     const isOrganizationManager = userRole === 'OrganizationManager';
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    
-    const navigationItems = [
-      {
-        id: 'organizations',
-        label: 'Select Organizations',
-        icon: '🏢',
-        visible: true
-      },
-      {
-        id: 'courses',
-        label: 'Courses',
-        icon: '📚',
-        visible: isOrganizationManager
-      },
-      {
-        id: 'lectures',
-        label: 'Lectures',
-        icon: '🎓',
-        visible: isOrganizationManager
-      },
-      {
-        id: 'profile',
-        label: 'Profile',
-        icon: '👤',
-        visible: true
-      },
-      {
-        id: 'appearance',
-        label: 'Appearance',
-        icon: '🎨',
-        visible: true
-      }
-    ];
-
-    const handleNavigation = (pageId: string) => {
-      setOrganizationCurrentPage(pageId);
-      setIsSidebarOpen(false); // Close mobile sidebar after navigation
-    };
     
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        {/* Mobile Header */}
-        <div className="lg:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between p-4">
-            <h2 className="font-bold text-lg text-gray-900 dark:text-white">Organization Portal</h2>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="lg:hidden"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleBackToMain}>
-                Back
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex w-full min-h-screen lg:h-screen">
-          {/* Mobile Overlay */}
-          {isSidebarOpen && (
-            <div 
-              className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-              onClick={() => setIsSidebarOpen(false)}
-            />
-          )}
-
+        <div className="flex w-full h-screen">
           {/* Organization Sidebar */}
-          <div className={`
-            fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col
-            transform transition-transform duration-300 ease-in-out lg:translate-x-0
-            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            lg:w-64 lg:flex
-          `}>
-            {/* Desktop Header */}
-            <div className="hidden lg:flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="font-bold text-lg text-gray-900 dark:text-white">Organization Portal</h2>
               <Button variant="ghost" size="sm" onClick={handleBackToMain}>
                 Back
               </Button>
             </div>
-
-            {/* Mobile Header in Sidebar */}
-            <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="font-bold text-lg text-gray-900 dark:text-white">Navigation</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsSidebarOpen(false)}
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </Button>
-            </div>
             
-            {/* Navigation Items */}
-            <div className="flex-1 p-4 overflow-y-auto">
+            <div className="flex-1 p-4">
               <div className="space-y-2">
-                {navigationItems.filter(item => item.visible).map((item) => (
-                  <Button
-                    key={item.id}
-                    variant={organizationCurrentPage === item.id ? 'default' : 'ghost'}
-                    className="w-full justify-start text-left"
-                    onClick={() => handleNavigation(item.id)}
-                  >
-                    <span className="mr-3 text-base">{item.icon}</span>
-                    <span className="flex-1">{item.label}</span>
-                  </Button>
-                ))}
+                <Button
+                  variant={organizationCurrentPage === 'organizations' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => setOrganizationCurrentPage('organizations')}
+                >
+                  Select Organizations
+                </Button>
+                
+                {isOrganizationManager && (
+                  <>
+                    <Button
+                      variant={organizationCurrentPage === 'courses' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setOrganizationCurrentPage('courses')}
+                    >
+                      Courses
+                    </Button>
+                    <Button
+                      variant={organizationCurrentPage === 'lectures' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setOrganizationCurrentPage('lectures')}
+                    >
+                      Lectures
+                    </Button>
+                  </>
+                )}
+                
+                <Button
+                  variant={organizationCurrentPage === 'profile' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => setOrganizationCurrentPage('profile')}
+                >
+                  Profile
+                </Button>
+                <Button
+                  variant={organizationCurrentPage === 'appearance' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => setOrganizationCurrentPage('appearance')}
+                >
+                  Appearance
+                </Button>
               </div>
-            </div>
-
-            {/* Mobile Back Button */}
-            <div className="lg:hidden p-4 border-t border-gray-200 dark:border-gray-700">
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={handleBackToMain}
-              >
-                Back to Main
-              </Button>
             </div>
           </div>
           
           {/* Organization Content */}
-          <div className="flex-1 overflow-auto">
-            {/* Content Wrapper with responsive padding */}
-            <div className="p-4 sm:p-6 lg:p-8 max-w-full">
-              {organizationCurrentPage === 'organizations' && (
-                <OrganizationManagement
-                  userRole={userRole || 'Student'}
-                  userPermissions={organizationLoginData?.permissions}
-                  currentInstituteId={currentInstituteId || undefined}
-                />
-              )}
-              {organizationCurrentPage === 'courses' && isOrganizationManager && (
-                <OrganizationCourses />
-              )}
-              {organizationCurrentPage === 'lectures' && isOrganizationManager && (
-                <OrganizationLectures />
-              )}
-              {organizationCurrentPage === 'profile' && <Profile />}
-              {organizationCurrentPage === 'appearance' && <Appearance />}
-            </div>
+          <div className="flex-1 overflow-auto p-6">
+            {organizationCurrentPage === 'organizations' && (
+              <OrganizationManagement
+                userRole={userRole || 'Student'}
+                userPermissions={organizationLoginData?.permissions}
+                currentInstituteId={currentInstituteId || undefined}
+              />
+            )}
+            {organizationCurrentPage === 'courses' && isOrganizationManager && (
+              <OrganizationCourses />
+            )}
+            {organizationCurrentPage === 'lectures' && isOrganizationManager && (
+              <OrganizationLectures />
+            )}
+            {organizationCurrentPage === 'profile' && <Profile />}
+            {organizationCurrentPage === 'appearance' && <Appearance />}
           </div>
         </div>
       </div>
@@ -376,6 +246,62 @@ const AppContent = ({ initialPage }: AppContentProps) => {
           userPermissions={organizationLoginData?.permissions}
         />
       );
+    }
+
+    // System Admin doesn't need institute/class/subject selection flow
+    if (user?.role === 'SystemAdmin') {
+      switch (currentPage) {
+        case 'dashboard':
+          return <Dashboard />;
+        case 'users':
+          return <Users />;
+        case 'students':
+          return <Students />;
+        case 'teachers':
+          return <Teachers />;
+        case 'parents':
+          return <Parents />;
+        case 'grades':
+          return <Grades />;
+        case 'classes':
+          return <Classes apiLevel="institute" />;
+        case 'subjects':
+          return <Subjects apiLevel="institute" />;
+        case 'institutes':
+          return <Institutes />;
+        case 'grading':
+        case 'grades-table':
+        case 'create-grade':
+        case 'assign-grade-classes':
+        case 'view-grade-classes':
+          return <Grading />;
+        case 'attendance':
+          return <Attendance />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
+        case 'attendance-markers':
+          return <AttendanceMarkers />;
+        case 'qr-attendance':
+          return <QRAttendance />;
+        case 'lectures':
+          return <Lectures />;
+        case 'live-lectures':
+          return <LiveLectures />;
+        case 'homework':
+          return <Homework />;
+        case 'exams':
+          return <Exams />;
+        case 'results':
+          return <Results />;
+        case 'profile':
+          return <Profile />;
+        case 'institute-details':
+          return <InstituteDetails />;
+        case 'appearance':
+          return <Appearance />;
+        default:
+          return <Dashboard />;
+      }
     }
 
     // For Organization Manager - show organizations list or organization-specific dashboard
@@ -440,38 +366,22 @@ const AppContent = ({ initialPage }: AppContentProps) => {
       switch (currentPage) {
         case 'dashboard':
           return <Dashboard />;
-        case 'enroll-class':
-          console.log('Student: Rendering EnrollClass component');
-          return <EnrollClass />;
-        case 'enroll-subject':
-          console.log('Student: Rendering EnrollSubject component');
-          return <EnrollSubject />;
-        case 'my-attendance':
-          console.log('Student: Rendering MyAttendance component');
-          return <MyAttendance />;
+        case 'attendance':
+          return <Attendance />;
         case 'lectures':
           return <Lectures />;
-        case 'free-lectures':
-          return <FreeLectures />;
         case 'homework':
           return <Homework />;
-        case 'homework-submissions':
-          return <StudentHomeworkSubmissions />;
         case 'exams':
           return <Exams />;
         case 'results':
           return <Results />;
-        case 'institute-lectures':
-          console.log('Student: Rendering InstituteLectures component');
-          return <InstituteLectures />;
         case 'profile':
           return <Profile />;
         case 'select-institute':
           return <InstituteSelector />;
         case 'appearance':
           return <Appearance />;
-        case 'organizations':
-          return renderComponent();
         default:
           return <Dashboard />;
       }
@@ -479,18 +389,12 @@ const AppContent = ({ initialPage }: AppContentProps) => {
 
     // For Parent role
     if (user?.role === 'Parent') {
-      if (currentPage === 'parents') {
+      if (currentPage === 'parent-children') {
         return <ParentChildrenSelector />;
       }
 
-      if (!selectedChild && currentPage !== 'parents' && currentPage !== 'profile' && currentPage !== 'appearance') {
+      if (!selectedChild && currentPage !== 'parent-children' && currentPage !== 'profile') {
         return <ParentChildrenSelector />;
-      }
-
-      // For Parent role, when "Select Institute" is clicked (dashboard page), 
-      // use InstituteSelector but pass the selected child's ID
-      if (currentPage === 'dashboard' && selectedChild && !selectedInstitute) {
-        return <InstituteSelector useChildId={true} />;
       }
 
       switch (currentPage) {
@@ -500,19 +404,13 @@ const AppContent = ({ initialPage }: AppContentProps) => {
           return <Attendance />;
         case 'homework':
           return <Homework />;
-        case 'homework-submissions':
-          return <StudentHomeworkSubmissions />;
         case 'results':
           return <Results />;
         case 'exams':
           return <Exams />;
         case 'profile':
           return <Profile />;
-        case 'child-attendance':
-          return <ChildAttendance />;
-        case 'child-results':
-          return <ChildResults />;
-        case 'parents':
+        case 'parent-children':
           return <ParentChildrenSelector />;
         case 'appearance':
           return <Appearance />;
@@ -535,7 +433,7 @@ const AppContent = ({ initialPage }: AppContentProps) => {
         return <SubjectSelector />;
       }
 
-      const classRequiredPages = ['grading'];
+      const classRequiredPages = ['attendance-marking', 'grading'];
       if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
         return <ClassSelector />;
       }
@@ -550,14 +448,12 @@ const AppContent = ({ initialPage }: AppContentProps) => {
           return <Dashboard />;
         case 'students':
           return <Students />;
-        case 'unverified-students':
-          return <UnverifiedStudents />;
         case 'parents':
           return <Parents />;
         case 'classes':
-          return <Classes />;
+          return <Classes apiLevel="institute" />;
         case 'subjects':
-          return <Subjects />;
+          return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
         case 'select-institute':
           return <InstituteSelector />;
         case 'grading':
@@ -568,22 +464,14 @@ const AppContent = ({ initialPage }: AppContentProps) => {
           return <Grading />;
         case 'attendance':
           return <Attendance />;
-        case 'daily-attendance':
-          return <NewAttendance />;
-        case 'qr-attendance':
-          return <QRAttendance />;
-        case 'rfid-attendance':
-          return <RFIDAttendance />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
         case 'lectures':
-          return user?.role === 'Teacher' ? <TeacherLectures /> : <Lectures />;
-        case 'institute-lectures':
-          return <InstituteLectures />;
+          return <Lectures />;
         case 'homework':
-          return user?.role === 'Teacher' ? <TeacherHomework /> : <Homework />;
-        case 'homework-submissions':
-          return <StudentHomeworkSubmissions />;
+          return <Homework />;
         case 'exams':
-          return user?.role === 'Teacher' ? <TeacherExams /> : <Exams />;
+          return <Exams />;
         case 'results':
           return <Results />;
         case 'profile':
@@ -601,29 +489,17 @@ const AppContent = ({ initialPage }: AppContentProps) => {
         return <InstituteSelector />;
       }
 
-      if (currentPage === 'select-class') {
+      if (!selectedClass && currentPage !== 'select-class') {
         return <ClassSelector />;
-      }
-
-      if (currentPage === 'select-subject') {
-        return <SubjectSelector />;
       }
 
       switch (currentPage) {
         case 'dashboard':
           return <Dashboard />;
-        case 'attendance':
-          return <Attendance />;
-        case 'daily-attendance':
-          return <NewAttendance />;
-        case 'my-attendance':
-          return <MyAttendance />;
-        case 'attendance-markers':
-          return <AttendanceMarkers />;
+        case 'attendance-marking':
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
         case 'qr-attendance':
           return <QRAttendance />;
-        case 'rfid-attendance':
-          return <RFIDAttendance />;
         case 'profile':
           return <Profile />;
         case 'select-institute':
@@ -632,10 +508,8 @@ const AppContent = ({ initialPage }: AppContentProps) => {
           return <ClassSelector />;
         case 'appearance':
           return <Appearance />;
-        case 'settings':
-          return <Settings />;
         default:
-          return <Dashboard />;
+          return <AttendanceMarking onNavigate={setCurrentPage} />;
       }
     }
 
@@ -652,7 +526,7 @@ const AppContent = ({ initialPage }: AppContentProps) => {
       return <SubjectSelector />;
     }
 
-    const classRequiredPages = ['grading'];
+    const classRequiredPages = ['attendance-marking', 'grading'];
     if (selectedInstitute && !selectedClass && classRequiredPages.includes(currentPage)) {
       return <ClassSelector />;
     }
@@ -665,24 +539,10 @@ const AppContent = ({ initialPage }: AppContentProps) => {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
-      case 'institute-users':
-        return <InstituteUsers />;
       case 'users':
-        // Show InstituteUsers for InstituteAdmin
-        if (user?.role === 'InstituteAdmin') {
-          return <InstituteUsers />;
-        }
         return <Users />;
       case 'students':
-         return <Students />;
-      case 'unverified-students':
-        return <UnverifiedStudents />;
-      case 'enroll-class':
-        console.log('Rendering EnrollClass component for Student');
-        return <EnrollClass />;
-      case 'enroll-subject':
-        console.log('Rendering EnrollSubject component for Student');
-        return <EnrollSubject />;
+        return <Students />;
       case 'teachers':
         return <Teachers />;
       case 'parents':
@@ -690,9 +550,9 @@ const AppContent = ({ initialPage }: AppContentProps) => {
       case 'grades':
         return <Grades />;
       case 'classes':
-        return <Classes />;
+        return <Classes apiLevel="institute" />;
       case 'subjects':
-        return <Subjects />;
+        return <Subjects apiLevel={selectedClass ? "class" : "institute"} />;
       case 'institutes':
         return <Institutes />;
       case 'select-institute':
@@ -705,22 +565,18 @@ const AppContent = ({ initialPage }: AppContentProps) => {
         return <Grading />;
       case 'attendance':
         return <Attendance />;
-      case 'daily-attendance':
-        return <NewAttendance />;
+      case 'attendance-marking':
+        return <AttendanceMarking onNavigate={setCurrentPage} />;
       case 'attendance-markers':
         return <AttendanceMarkers />;
       case 'qr-attendance':
         return <QRAttendance />;
-      case 'rfid-attendance':
-        return <RFIDAttendance />;
       case 'lectures':
         return <Lectures />;
-      case 'free-lectures':
-        return <FreeLectures />;
+      case 'live-lectures':
+        return <LiveLectures />;
       case 'homework':
         return <Homework />;
-      case 'homework-submissions':
-        return <StudentHomeworkSubmissions />;
       case 'exams':
         return <Exams />;
       case 'results':
@@ -733,14 +589,8 @@ const AppContent = ({ initialPage }: AppContentProps) => {
         return <TeacherExams />;
       case 'teacher-lectures':
         return <TeacherLectures />;
-      case 'institute-lectures':
-        return <InstituteLectures />;
       case 'profile':
         return <Profile />;
-      case 'settings':
-        return <Settings />;
-      case 'setup-guide':
-        return <SetupGuide />;
       case 'institute-details':
         return <InstituteDetails />;
       case 'appearance':

@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, Video, Plus, Search, Filter, Calendar, Clock, ExternalLink, MapPin, Users, Edit } from 'lucide-react';
+import { RefreshCw, Video, Plus, Search, Filter, Calendar, Clock, ExternalLink, MapPin, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getBaseUrl } from '@/contexts/utils/auth.api';
@@ -13,7 +12,6 @@ import { DataCardView } from '@/components/ui/data-card-view';
 import DataTable from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import CreateLectureForm from '@/components/forms/CreateLectureForm';
-import UpdateLectureForm from '@/components/forms/UpdateLectureForm';
 
 interface TeacherLecture {
   id: string;
@@ -62,8 +60,6 @@ const TeacherLectures = () => {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
-  const [selectedLecture, setSelectedLecture] = useState<TeacherLecture | null>(null);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,7 +87,7 @@ const TeacherLectures = () => {
   };
 
   const fetchLectures = async () => {
-    if (!selectedInstitute?.id || !selectedClass?.id || !selectedSubject?.id || !user?.id) {
+    if (!selectedInstitute?.id || !selectedClass?.id || !selectedSubject?.id) {
       return;
     }
 
@@ -102,8 +98,7 @@ const TeacherLectures = () => {
         limit: '10',
         instituteId: selectedInstitute.id,
         classId: selectedClass.id,
-        subjectId: selectedSubject.id,
-        instructorId: user.id
+        subjectId: selectedSubject.id
       });
 
       const response = await fetch(
@@ -202,18 +197,11 @@ const TeacherLectures = () => {
     }
   };
 
-  const handleEditLecture = (lecture: TeacherLecture) => {
-    setSelectedLecture(lecture);
-    setIsUpdateDialogOpen(true);
-  };
-
-  const handleUpdateLecture = () => {
-    setIsUpdateDialogOpen(false);
-    setSelectedLecture(null);
-    fetchLectures(); // Refresh the list
-  };
-
-  // Removed automatic API call - users must click Refresh to load data
+  useEffect(() => {
+    if (selectedInstitute?.id && selectedClass?.id && selectedSubject?.id) {
+      fetchLectures();
+    }
+  }, [selectedInstitute, selectedClass, selectedSubject]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -301,34 +289,6 @@ const TeacherLectures = () => {
           {value.toUpperCase()}
         </Badge>
       )
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (value: any, row: TeacherLecture) => (
-        <div className="flex items-center gap-2">
-          {row.recordingUrl && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => window.open(row.recordingUrl, '_blank')}
-              className="flex items-center gap-1"
-            >
-              <Video className="h-3 w-3" />
-              Recording
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => handleEditLecture(row)}
-            className="flex items-center gap-1"
-          >
-            <Edit className="h-3 w-3" />
-            Edit
-          </Button>
-        </div>
-      )
     }
   ];
 
@@ -361,7 +321,7 @@ const TeacherLectures = () => {
             Select Subject
           </h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Please select an institute, class, and subject to view lectures.
+            Please select an institute, class, and subject to manage lectures.
           </p>
         </div>
       </div>
@@ -374,13 +334,13 @@ const TeacherLectures = () => {
         <div className="text-center py-12">
           <Video className="h-16 w-16 mx-auto mb-4 text-blue-600" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            My Subject Lectures
+            Subject Lectures
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-2">
             Current Selection: {getCurrentSelection()}
           </p>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Click the button below to load your lectures
+            Click the button below to load lectures
           </p>
           <Button 
             onClick={fetchLectures} 
@@ -395,7 +355,7 @@ const TeacherLectures = () => {
             ) : (
               <>
                 <Video className="h-4 w-4 mr-2" />
-                Load My Lectures
+                Load Lectures
               </>
             )}
           </Button>
@@ -409,7 +369,7 @@ const TeacherLectures = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            My Subject Lectures
+            Subject Lectures
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Current Selection: {getCurrentSelection()}
@@ -567,22 +527,6 @@ const TeacherLectures = () => {
               fetchLectures();
             }}
           />
-        </DialogContent>
-      </Dialog>
-
-      {/* Update Lecture Dialog */}
-      <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Update Lecture</DialogTitle>
-          </DialogHeader>
-          {selectedLecture && (
-            <UpdateLectureForm
-              lecture={selectedLecture}
-              onClose={() => setIsUpdateDialogOpen(false)}
-              onSuccess={handleUpdateLecture}
-            />
-          )}
         </DialogContent>
       </Dialog>
     </div>

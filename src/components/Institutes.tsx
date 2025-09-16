@@ -156,7 +156,9 @@ const Institutes = () => {
     }
   };
 
-  // Removed automatic API call - users must click Refresh to load data
+  useEffect(() => {
+    fetchInstitutes(currentPage, searchTerm, isActiveFilter);
+  }, [currentPage, searchTerm, isActiveFilter]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);

@@ -1,10 +1,14 @@
+
 import React from 'react';
+import { AuthProvider } from '@/contexts/AuthContext';
 import AppContent from '@/components/AppContent';
 
 const Index = () => {
-  console.log('Index component rendering');
-  
-  return <AppContent />;
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 };
 
 export default Index;

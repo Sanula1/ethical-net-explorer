@@ -1,3 +1,4 @@
+
 export interface User {
   id: string;
   firstName: string;
@@ -26,14 +27,13 @@ export interface User {
 }
 
 // Export UserRole type for use in other components
-export type UserRole = 'InstituteAdmin' | 'Teacher' | 'Student' | 'AttendanceMarker' | 'Parent' | 'OrganizationManager';
+export type UserRole = 'SystemAdmin' | 'InstituteAdmin' | 'Teacher' | 'Student' | 'AttendanceMarker' | 'Parent' | 'OrganizationManager';
 
 export interface Institute {
   id: string;
   name: string;
   code: string;
   description: string;
-  type?: string;
   isActive: boolean;
 }
 
@@ -51,15 +51,6 @@ export interface Subject {
   name: string;
   code: string;
   description: string;
-  category?: string;
-  creditHours?: number;
-  isActive?: boolean;
-  subjectType?: string;
-  basketCategory?: string;
-  instituteType?: string;
-  imgUrl?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export interface Child {
@@ -93,7 +84,6 @@ export interface Organization {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  userRole?: string; // User's role in this organization
 }
 
 export interface LoginCredentials {
@@ -108,8 +98,6 @@ export interface AuthContextType {
   selectedSubject: Subject | null;
   selectedChild: Child | null;
   selectedOrganization: Organization | null;
-  selectedInstituteType: string | null;
-  selectedClassGrade: number | null;
   currentInstituteId: string | null;
   currentClassId: string | null;
   currentSubjectId: string | null;
@@ -122,9 +110,7 @@ export interface AuthContextType {
   setSelectedSubject: (subject: Subject | null) => void;
   setSelectedChild: (child: Child | null) => void;
   setSelectedOrganization: (organization: Organization | null) => void;
-  loadUserInstitutes: () => Promise<Institute[]>;
   refreshUserData?: (forceRefresh?: boolean) => Promise<void>;
-  validateUserToken?: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }

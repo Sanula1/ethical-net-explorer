@@ -1,35 +1,30 @@
-
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, RefreshCw, Users as UsersIcon, Search, Filter } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { getBaseUrl } from '@/contexts/utils/auth.api';
-import { DataCardView } from '@/components/ui/data-card-view';
 import DataTable from '@/components/ui/data-table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RefreshCw, User, Filter } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import CreateUserForm from '@/components/forms/CreateUserForm';
-import { cachedApiClient } from '@/api/cachedClient';
-import { useApiRequest } from '@/hooks/useApiRequest';
+import { DataCardView } from '@/components/ui/data-card-view';
+import { getBaseUrl, getApiHeaders } from '@/contexts/utils/auth.api';
 
 interface User {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  phoneNumber: string;
+  phone: string;
   userType: string;
-  dateOfBirth?: string;
-  gender?: string;
-  imageUrl?: string;
+  dateOfBirth: string;
+  gender: string;
   isActive: boolean;
-  subscriptionPlan: string;
-  paymentExpiresAt?: string;
   createdAt: string;
+  updatedAt: string;
+  imageUrl: string | null;
 }
 
 interface UsersResponse {
@@ -47,68 +42,131 @@ interface UsersResponse {
 }
 
 const Users = () => {
-  const { toast } = useToast();
   const { user } = useAuth();
-  
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  
-  // Pagination state
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [totalUsers, setTotalUsers] = useState(0);
-  const limit = 10;
+  const [totalItems, setTotalItems] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // Filter states
+  const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [userTypeFilter, setUserTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [userTypeFilter, setUserTypeFilter] = useState('all');
 
-  // Use API request hook for creating users with duplicate prevention
-  const createUserRequest = useApiRequest(
-    async (userData: any) => {
-      console.log('Creating user with data:', userData);
-      const response = await cachedApiClient.post('/users', userData);
-      return response;
-    },
-    { preventDuplicates: true, showLoading: false }
-  );
-
-  // Use API request hook for fetching users
-  const fetchUsersRequest = useApiRequest(
-    async (page: number) => {
-      console.log(`Fetching users with params: page=${page}&limit=${limit}`);
-      const response = await cachedApiClient.get<UsersResponse>(
-        '/users',
-        { page: page.toString(), limit: limit.toString() },
-        { ttl: 15, useStaleWhileRevalidate: true }
-      );
-      return response;
-    },
-    { preventDuplicates: true }
-  );
-
-  const fetchUsers = async (page = 1) => {
+  const fetchUsers = async () => {
     try {
-      const data = await fetchUsersRequest.execute(page);
+      setLoading(true);
+
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: itemsPerPage.toString()
+      });
+
+      if (statusFilter !== 'all') {
+        params.append('isActive', statusFilter);
+      }
+
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+
+      if (userTypeFilter !== 'all') {
+        params.append('userType', userTypeFilter);
+      }
+
+      console.log('Fetching users with params:', params.toString());
+
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/users?${params}`, {
+        headers: getApiHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: UsersResponse = await response.json();
       console.log('Users data received:', data);
       
       setUsers(data.data);
-      setCurrentPage(data.meta.page);
       setTotalPages(data.meta.totalPages);
-      setTotalUsers(data.meta.total);
-      
-      toast({
-        title: "Users Loaded",
-        description: `Successfully loaded ${data.data.length} users.`
-      });
+      setTotalItems(data.meta.total);
+      setDataLoaded(true);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
         title: "Error",
-        description: "Failed to load users",
+        description: "Failed to fetch users data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadData = () => {
+    fetchUsers();
+  };
+
+  useEffect(() => {
+    if (!dataLoaded) {
+      handleLoadData();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (dataLoaded) {
+      fetchUsers();
+    }
+  }, [currentPage, itemsPerPage, searchTerm, statusFilter, userTypeFilter]);
+
+  const handleViewUser = (userData: User) => {
+    setSelectedUser(userData);
+    setShowViewDialog(true);
+  };
+
+  const handleEditUser = (userData: User) => {
+    setSelectedUser(userData);
+    setShowEditDialog(true);
+  };
+
+  const handleDeleteUser = async (userData: User) => {
+    if (!confirm(`Are you sure you want to delete user ${userData.firstName} ${userData.lastName}?`)) {
+      return;
+    }
+
+    try {
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/users/${userData.id}`, {
+        method: 'DELETE',
+        headers: getApiHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete user');
+      }
+
+      toast({
+        title: "User Deleted",
+        description: `User ${userData.firstName} ${userData.lastName} has been deleted.`,
+        variant: "destructive"
+      });
+      
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete user. Please try again.",
         variant: "destructive"
       });
     }
@@ -116,44 +174,85 @@ const Users = () => {
 
   const handleCreateUser = async (userData: any) => {
     try {
-      console.log('Submitting user data with formatted date:', userData);
+      setLoading(true);
       
-      await createUserRequest.execute(userData);
-      
+      const headers = getApiHeaders();
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/users`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(userData)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create user');
+      }
+
       toast({
-        title: "Success",
-        description: "User created successfully!",
+        title: "User Created",
+        description: `User ${userData.firstName} ${userData.lastName} has been created successfully.`
       });
       
-      setShowCreateForm(false);
-      
-      // Refresh users list after successful creation
-      await fetchUsers(currentPage);
-      
+      setShowCreateDialog(false);
+      await fetchUsers();
     } catch (error) {
       console.error('Error creating user:', error);
       toast({
-        title: "Error", 
-        description: "Failed to create user",
+        title: "Creation Failed",
+        description: "Failed to create user. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Removed automatic API call - users must click Refresh to load data
+  const handleUpdateUser = async (userData: any) => {
+    if (!selectedUser) return;
+    
+    try {
+      setLoading(true);
+      
+      const baseUrl = getBaseUrl();
+      const response = await fetch(`${baseUrl}/users/${selectedUser.id}`, {
+        method: 'PATCH',
+        headers: getApiHeaders(),
+        body: JSON.stringify(userData)
+      });
 
-  const userColumns = [
+      if (!response.ok) {
+        throw new Error('Failed to update user');
+      }
+
+      toast({
+        title: "User Updated",
+        description: `User ${userData.firstName} ${userData.lastName} has been updated successfully.`
+      });
+      
+      setShowEditDialog(false);
+      setSelectedUser(null);
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to update user. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const columns = [
     {
-      key: 'name',
-      header: 'User',
+      key: 'firstName',
+      header: 'Name',
       render: (value: any, row: User) => (
         <div className="flex items-center space-x-3">
-          <Avatar className="h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
-            <AvatarImage src={row.imageUrl || ''} alt={`${row.firstName} ${row.lastName}`} />
-            <AvatarFallback className="text-xs">
-              {row.firstName.charAt(0)}{row.lastName.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
+          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <User className="h-4 w-4 text-blue-600" />
+          </div>
           <div className="min-w-0 flex-1">
             <p className="font-medium truncate">{row.firstName} {row.lastName}</p>
             <p className="text-sm text-gray-500 truncate">{row.email}</p>
@@ -161,183 +260,205 @@ const Users = () => {
         </div>
       )
     },
-    {
-      key: 'userType',
-      header: 'Type',
-      render: (value: string) => (
-        <Badge variant="outline">{value}</Badge>
-      )
-    },
-    {
-      key: 'phoneNumber',
-      header: 'Phone',
-      render: (value: string) => value || 'N/A'
-    },
-    {
-      key: 'isActive',
+    { key: 'phone', header: 'Phone' },
+    { key: 'userType', header: 'User Type' },
+    { key: 'gender', header: 'Gender' },
+    { 
+      key: 'isActive', 
       header: 'Status',
       render: (value: boolean) => (
-        <Badge variant={value ? 'default' : 'secondary'}>
-          {value ? 'Active' : 'Inactive'}
+        <Badge variant={value ? "default" : "secondary"}>
+          {value ? "Active" : "Inactive"}
         </Badge>
       )
     }
   ];
 
-  const filteredUsers = users.filter(user => {
+  // Filter users for mobile view
+  const filteredUsers = users.filter(userData => {
     const matchesSearch = !searchTerm || 
-      user.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      Object.values(userData).some(value => 
+        String(value).toLowerCase().includes(searchTerm.toLowerCase())
+      );
     
-    const matchesUserType = userTypeFilter === 'all' || user.userType === userTypeFilter;
     const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && user.isActive) || 
-      (statusFilter === 'inactive' && !user.isActive);
+      String(userData.isActive) === statusFilter;
     
-    return matchesSearch && matchesUserType && matchesStatus;
+    const matchesUserType = userTypeFilter === 'all' || 
+      userData.userType === userTypeFilter;
+    
+    return matchesSearch && matchesStatus && matchesUserType;
   });
 
-  if (!user) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-600 dark:text-gray-400">Please log in to view users.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Users</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Manage system users and their roles
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Users Management</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage user accounts and permissions</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="flex items-center gap-1">
-            <UsersIcon className="h-4 w-4" />
-            {totalUsers} Users
+        <div className="flex items-center space-x-2">
+          <User className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+          <Badge variant="outline" className="text-sm">
+            {totalItems} Total Users
           </Badge>
-          <Button
-            variant="outline"
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-          </Button>
+        </div>
+      </div>
+
+      {!dataLoaded ? (
+        <div className="text-center py-12">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            Users Data
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            Click the button below to load users data
+          </p>
           <Button 
-            onClick={() => fetchUsers(currentPage)} 
-            disabled={fetchUsersRequest.loading}
-            variant="outline"
-            size="sm"
+            onClick={handleLoadData} 
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700"
           >
-            {fetchUsersRequest.loading ? (
+            {loading ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Loading...
+                Loading Data...
               </>
             ) : (
               <>
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+                Load Data
               </>
             )}
           </Button>
-          <Button onClick={() => setShowCreateForm(true)} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="h-4 w-4 mr-2" />
-            Add User
-          </Button>
         </div>
-      </div>
-
-      {/* Filter Controls */}
-      {showFilters && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Filter className="h-5 w-5" />
-              Filter Users
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="TEACHER">Teacher</SelectItem>
-                  <SelectItem value="STUDENT">Student</SelectItem>
-                  <SelectItem value="PARENT">Parent</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchTerm('');
-                  setUserTypeFilter('all');
-                  setStatusFilter('all');
-                }}
-                className="w-full"
-              >
-                Clear Filters
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Users Table/Cards */}
-      {filteredUsers.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <UsersIcon className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No Users Found
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              {searchTerm || userTypeFilter !== 'all' || statusFilter !== 'all' 
-                ? 'No users match your current filters.' 
-                : 'No users have been created yet.'}
-            </p>
-          </CardContent>
-        </Card>
       ) : (
         <>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+              </Button>
+              
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={() => setShowCreateDialog(true)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Create User
+                </Button>
+                <Button 
+                  onClick={handleLoadData} 
+                  disabled={loading}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4" />
+                      Refresh
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Filter Controls */}
+            {showFilters && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                    Search Users
+                  </label>
+                  <Input
+                    placeholder="Search users..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                    Status
+                  </label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="true">Active</SelectItem>
+                      <SelectItem value="false">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 block">
+                    User Type
+                  </label>
+                  <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="User Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="Student">Student</SelectItem>
+                      <SelectItem value="Teacher">Teacher</SelectItem>
+                      <SelectItem value="Parent">Parent</SelectItem>
+                      <SelectItem value="InstituteAdmin">Institute Admin</SelectItem>
+                      <SelectItem value="SystemAdmin">System Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setStatusFilter('all');
+                      setUserTypeFilter('all');
+                    }}
+                    className="w-full"
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Desktop Table View */}
           <div className="hidden md:block">
             <DataTable
               title=""
-              data={filteredUsers}
-              columns={userColumns}
+              data={users}
+              columns={columns}
+              onAdd={undefined}
+              onEdit={handleEditUser}
+              onDelete={handleDeleteUser}
+              onView={handleViewUser}
               searchPlaceholder="Search users..."
+              currentPage={currentPage}
+              totalItems={totalItems}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={setItemsPerPage}
+              itemsPerPage={itemsPerPage}
               allowAdd={false}
               allowEdit={false}
-              allowDelete={false}
+              allowDelete={true}
             />
           </div>
 
@@ -345,52 +466,92 @@ const Users = () => {
           <div className="md:hidden">
             <DataCardView
               data={filteredUsers}
-              columns={userColumns}
+              columns={columns}
+              onView={handleViewUser}
+              onEdit={handleEditUser}
+              onDelete={handleDeleteUser}
               allowEdit={false}
-              allowDelete={false}
+              allowDelete={true}
             />
           </div>
         </>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {((currentPage - 1) * limit) + 1} to {Math.min(currentPage * limit, totalUsers)} of {totalUsers} users
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchUsers(currentPage - 1)}
-              disabled={currentPage === 1 || fetchUsersRequest.loading}
-            >
-              Previous
-            </Button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchUsers(currentPage + 1)}
-              disabled={currentPage === totalPages || fetchUsersRequest.loading}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Create Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New User</DialogTitle>
+          </DialogHeader>
+          <CreateUserForm
+            onSubmit={handleCreateUser}
+            onCancel={() => setShowCreateDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {/* Create User Form Dialog */}
-      {showCreateForm && (
-        <CreateUserForm
-          onSubmit={handleCreateUser}
-          onCancel={() => setShowCreateForm(false)}
-          loading={createUserRequest.loading}
-        />
-      )}
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <CreateUserForm
+            initialData={selectedUser}
+            onSubmit={handleUpdateUser}
+            onCancel={() => {
+              setShowEditDialog(false);
+              setSelectedUser(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>User Details</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="h-8 w-8 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold">
+                    {selectedUser.firstName} {selectedUser.lastName}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">{selectedUser.userType}</p>
+                  <Badge variant={selectedUser.isActive ? "default" : "secondary"}>
+                    {selectedUser.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Email:</label>
+                  <p className="text-sm">{selectedUser.email}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Phone:</label>
+                  <p className="text-sm">{selectedUser.phone}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Gender:</label>
+                  <p className="text-sm">{selectedUser.gender}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Date of Birth:</label>
+                  <p className="text-sm">{selectedUser.dateOfBirth}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
