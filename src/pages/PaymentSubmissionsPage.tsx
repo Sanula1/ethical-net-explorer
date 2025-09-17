@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,17 +9,16 @@ import { subjectPaymentsApi, SubjectPaymentSubmission } from '@/api/subjectPayme
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import VerifySubjectPaymentDialog from '@/components/forms/VerifySubjectPaymentDialog';
-const PaymentSubmissionsPage = () => {
+
+const PaymentSubmissionsPage: React.FC = () => {
   const navigate = useNavigate();
-  const {
-    toast
-  } = useToast();
-  const {
-    user
-  } = useAuth();
+  const { toast } = useToast();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
+  
   const paymentId = searchParams.get('paymentId');
   const paymentTitle = searchParams.get('paymentTitle');
+  
   const [submissions, setSubmissions] = useState<SubjectPaymentSubmission[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -169,7 +168,7 @@ const PaymentSubmissionsPage = () => {
                             </div>
                             <div className="text-right">
                               <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                                ₹{submission.paymentAmount ? parseFloat(submission.paymentAmount.toString()).toLocaleString() : '0'}
+                                Rs {submission.paymentAmount ? parseFloat(submission.paymentAmount.toString()).toLocaleString() : '0'}
                               </p>
                             </div>
                           </div>

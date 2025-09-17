@@ -56,11 +56,11 @@ const InstitutePayments = () => {
   const isTeacher = user?.userType === 'TEACHER';
   // Configure table data hook
   const tableData = useTableData<InstitutePayment>({
-    endpoint: isInstituteAdmin 
+    endpoint: (isInstituteAdmin || isTeacher)
       ? `/institute-payments/institute/${selectedInstitute?.id}/payments`
       : `/institute-payments/institute/${selectedInstitute?.id}/my-payments`,
     defaultParams: { search: searchQuery },
-    dependencies: [selectedInstitute?.id, isInstituteAdmin, searchQuery],
+    dependencies: [selectedInstitute?.id, isInstituteAdmin, isTeacher, searchQuery],
     pagination: { defaultLimit: 50, availableLimits: [25, 50, 100] },
     autoLoad: !!selectedInstitute?.id
   });

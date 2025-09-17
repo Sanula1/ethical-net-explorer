@@ -76,7 +76,11 @@ export const useTableData = <T = any>(config: TableDataConfig): UseTableDataRetu
       
       // Handle institute payments API response format
       let data, total;
-      if (result?.data?.payments) {
+      if (result?.data?.submissions) {
+        // Institute payment submissions API format
+        data = result.data.submissions;
+        total = result.data.pagination?.totalItems || data.length;
+      } else if (result?.data?.payments) {
         // Institute payments API format
         data = result.data.payments;
         total = result.data.pagination?.totalItems || data.length;
@@ -111,16 +115,24 @@ export const useTableData = <T = any>(config: TableDataConfig): UseTableDataRetu
 
   const refresh = useCallback(() => loadData(true), [loadData]);
 
-  const updateFilters = useCallback((newFilters: Record<string, any>) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
-    pagination.actions.setPage(0); // Reset to first page when filters change
-  }, [pagination]);
+const updateFilters = useCallback((newFilters: Record<string, any>) => {
+  setFilters(prev => ({ ...prev, ...newFilters }));
+  if (newFilters.page == null) {
+    pagination.actions.setPage(0); // Reset to first page only when page isn't provided
+  } else {
+    // Keep pagination UI in sync when explicit page is provided (API is 1-based, UI is 0-based)
+    const zeroBased = Math.max(0, Number(newFilters.page) - 1);
+    pagination.actions.setPage(zeroBased);
+  }
+}, [pagination.actions]);
 
 // Auto-load data when enabled and any dependency changes
 useEffect(() => {
   if (config.autoLoad === false) return;
+  if (!config.endpoint) return;
   loadData(false);
-}, [pagination.pagination.page, pagination.pagination.limit, ...(config.dependencies || [])]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [config.endpoint, pagination.pagination.page, pagination.pagination.limit, config.autoLoad]);
 
   return {
     ...pagination,

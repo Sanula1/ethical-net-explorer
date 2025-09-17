@@ -367,6 +367,34 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
             alwaysShow: false
           },
           {
+            id: 'lectures',
+            label: 'Lectures',
+            icon: Video,
+            permission: 'view-lectures',
+            alwaysShow: false
+          },
+          {
+            id: 'homework',
+            label: 'Homework',
+            icon: Notebook,
+            permission: 'view-homework',
+            alwaysShow: false
+          },
+          {
+            id: 'exams',
+            label: 'Exams',
+            icon: Award,
+            permission: 'view-exams',
+            alwaysShow: false
+          },
+          {
+            id: 'exam-results',
+            label: 'Exam Results',
+            icon: ClipboardList,
+            permission: 'view-results',
+            alwaysShow: false
+          },
+          {
             id: 'subject-payments',
             label: 'Subject Payments',
             icon: CreditCard,
@@ -448,13 +476,6 @@ const Sidebar = ({ isOpen, onClose, currentPage, onPageChange }: SidebarProps) =
             label: 'Select Subject',
             icon: BookOpen,
             permission: 'view-subjects',
-            alwaysShow: false
-          },
-          {
-            id: 'institute-lectures',
-            label: 'Institute Lectures',
-            icon: Video,
-            permission: 'view-lectures',
             alwaysShow: false
           }
         ];

@@ -35,34 +35,21 @@ export interface InstitutePayment {
 export interface PaymentSubmission {
   id: string;
   paymentId: string;
-  paymentType?: string;
-  description?: string;
-  dueDate?: string;
-  priority?: string;
-  paymentAmount: number;
-  paymentMethod: string;
-  transactionReference: string;
+  userId: string;
+  userType: string;
+  username: string;
   paymentDate: string;
+  receiptUrl: string;
+  receiptFilename: string;
+  transactionId: string;
+  submittedAmount: string;
   status: 'PENDING' | 'VERIFIED' | 'REJECTED';
-  verifiedAt?: string;
-  rejectionReason?: string;
-  lateFeeApplied?: number;
-  totalAmountPaid?: number;
-  receiptFileName?: string;
-  receiptFileUrl?: string;
-  receiptFileSize?: number;
-  receiptFileType?: string;
-  paymentRemarks?: string;
-  createdAt: string;
-  submittedBy?: string;
-  submitterName?: string;
-  verifiedBy?: string;
-  verifierName?: string;
-  notes?: string;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  rejectionReason: string | null;
+  notes: string;
+  uploadedAt: string;
   updatedAt: string;
-  canResubmit?: boolean;
-  canDelete?: boolean;
-  daysSinceSubmission?: number;
 }
 
 export interface InstitutePaymentsResponse {

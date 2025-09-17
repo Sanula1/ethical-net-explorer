@@ -88,18 +88,22 @@ class SubjectPaymentsApi {
   async getSubjectPayments(
     instituteId: string, 
     classId: string, 
-    subjectId: string
+    subjectId: string,
+    page: number = 1,
+    limit: number = 50
   ): Promise<SubjectPaymentsResponse> {
-    return apiClient.get(`/institute-class-subject-payments/institute/${instituteId}/class/${classId}/subject/${subjectId}`);
+    return apiClient.get(`/institute-class-subject-payments/institute/${instituteId}/class/${classId}/subject/${subjectId}?page=${page}&limit=${limit}`);
   }
 
   // Get student's subject payments
   async getMySubjectPayments(
     instituteId: string, 
     classId: string, 
-    subjectId: string
+    subjectId: string,
+    page: number = 1,
+    limit: number = 50
   ): Promise<SubjectPaymentsResponse> {
-    return apiClient.get(`/institute-class-subject-payments/institute/${instituteId}/class/${classId}/subject/${subjectId}/my-payments`);
+    return apiClient.get(`/institute-class-subject-payments/institute/${instituteId}/class/${classId}/subject/${subjectId}/my-payments?page=${page}&limit=${limit}`);
   }
 
   // Get student's subject payment submissions
@@ -122,8 +126,12 @@ class SubjectPaymentsApi {
   }
 
   // Get payment submissions by payment ID only (for simplified access)
-  async getPaymentSubmissions(paymentId: string): Promise<SubjectSubmissionsResponse> {
-    return apiClient.get(`/institute-class-subject-payment-submissions/payment/${paymentId}/submissions`);
+  async getPaymentSubmissions(
+    paymentId: string, 
+    page: number = 1, 
+    limit: number = 10
+  ): Promise<SubjectSubmissionsResponse> {
+    return apiClient.get(`/institute-class-subject-payment-submissions/payment/${paymentId}/submissions?page=${page}&limit=${limit}`);
   }
 
   // Verify payment submission
