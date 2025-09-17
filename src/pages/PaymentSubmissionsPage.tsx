@@ -64,7 +64,7 @@ const PaymentSubmissionsPage: React.FC = () => {
       setLoading(false);
     }
   };
-  
+
   const handleVerifySubmission = async (status: 'VERIFIED' | 'REJECTED', rejectionReason?: string, notes?: string) => {
     if (!verifyingSubmission) return;
     try {
@@ -80,7 +80,7 @@ const PaymentSubmissionsPage: React.FC = () => {
 
       // Reload submissions
       setLoaded(false);
-      loadSubmissions(page, rowsPerPage);
+      await loadSubmissions(page, rowsPerPage);
       setVerifyingSubmission(null);
     } catch (error: any) {
       toast({
