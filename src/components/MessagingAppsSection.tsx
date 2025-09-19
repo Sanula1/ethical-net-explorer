@@ -177,7 +177,10 @@ const MessagingAppsSection = () => {
             </Button>
 
             {/* Telegram Button */}
-            <Button onClick={() => handleButtonClick('telegram')} className={`
+            <Button onClick={() => {
+              handleButtonClick('telegram');
+              window.open('https://t.me/SurakshaLMS_Bot', '_blank');
+            }} className={`
                 group relative px-8 py-4 text-lg font-semibold rounded-xl
                 bg-blue-500 hover:bg-blue-600 text-white
                 shadow-lg hover:shadow-xl
