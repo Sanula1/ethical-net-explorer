@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
 import { Play } from "lucide-react";
+
 const WhiteboardSection = () => {
   const [isVisible, setIsVisible] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
@@ -12,12 +14,19 @@ const WhiteboardSection = () => {
     }, {
       threshold: 0.3
     });
+
     if (sectionRef.current) {
       observer.observe(sectionRef.current);
     }
+
     return () => observer.disconnect();
   }, []);
-  return <section ref={sectionRef} className="min-h-screen bg-background flex items-center justify-center px-4 py-16 relative overflow-hidden">
+
+  return (
+    <section 
+      ref={sectionRef} 
+      className="min-h-screen bg-background flex items-center justify-center px-4 py-16 relative overflow-hidden"
+    >
       {/* Decorative Background Dots */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Top area dots */}
@@ -49,34 +58,37 @@ const WhiteboardSection = () => {
         <div className={`space-y-8 ${isVisible ? 'animate-fade-in' : 'opacity-0'}`}>
           <div className="space-y-6">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight">
-              <span className="text-foreground">Fre </span>
-              <span className="text-primary">
-Learning</span>
+              <span className="text-foreground">Filling the </span>
+              <span className="text-primary">Gap</span>
               <br />
-              <span className="text-primary">Animation</span>
-              <span className="text-foreground"> Maker</span>
+              <span className="text-primary">Between</span>
+              <span className="text-foreground"> Student, Parent & Teacher</span>
             </h1>
             
             <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-lg">
-              Easily make free whiteboard or doodle videos directly in your browser.
-              <br />
-              Select ready made scenes and build your story.
+              Connecting education stakeholders through innovative learning solutions.
             </p>
           </div>
-
-          <Button size="lg" className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105">
-            Create My Whiteboard
-          </Button>
         </div>
 
         {/* Right Content - Video */}
         <div className={`${isVisible ? 'animate-fade-in' : 'opacity-0'} transition-all duration-1000 delay-300`}>
           <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-gray-900 to-gray-800">
             {/* YouTube Embed */}
-            <iframe src="https://www.youtube.com/embed/as6q5DylTyg?si=1LFjUkYrd7Yq-ii4" title="YouTube video player" className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
+            <iframe 
+              src="https://www.youtube.com/embed/as6q5DylTyg?si=1LFjUkYrd7Yq-ii4" 
+              title="YouTube video player" 
+              className="w-full h-full" 
+              frameBorder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              referrerPolicy="strict-origin-when-cross-origin" 
+              allowFullScreen
+            ></iframe>
             
             {/* Video Overlay Info */}
-            <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-white text-sm font-medium">Suraksha LMS</div>
+            <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-white text-sm font-medium">
+              Suraksha LMS
+            </div>
             
             {/* YouTube Branding */}
             <div className="absolute bottom-4 right-4 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
@@ -97,6 +109,8 @@ Learning</span>
           <div className="w-1 h-2 bg-primary/50 rounded-full mt-2 animate-pulse"></div>
         </div>
       </div>
-    </section>;
+    </section>
+  );
 };
+
 export default WhiteboardSection;
