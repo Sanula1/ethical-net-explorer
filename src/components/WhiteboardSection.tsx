@@ -73,7 +73,7 @@ Learning</span>
         <div className={`${isVisible ? 'animate-fade-in' : 'opacity-0'} transition-all duration-1000 delay-300`}>
           <div className="relative aspect-video rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-gray-900 to-gray-800">
             {/* YouTube Embed */}
-            <iframe src="https://www.youtube.com/embed/YQHsXMglC9A?si=K8xJvUqP3QZE5uYQ" title="How to Make Whiteboard Animations" className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
+            <iframe src="https://www.youtube.com/embed/as6q5DylTyg?si=1LFjUkYrd7Yq-ii4" title="YouTube video player" className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
             
             {/* Video Overlay Info */}
             <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-white text-sm font-medium">
