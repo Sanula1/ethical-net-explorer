@@ -189,7 +189,7 @@ const LMSHomepage = () => {
       <MessagingAppsSection />
 
       {/* Awards Section */}
-      <AwardsSection />
+      {/* <AwardsSection /> */}
 
       {/* Website Preview Section */}
       <WebsitePreviewSection />
