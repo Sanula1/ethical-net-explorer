@@ -263,8 +263,8 @@ const TextToVideoSections = () => {
     delay: 0,
     layoutType: 'business' as const
   }, {
-    title: "Marketing and social media managers",
-    description: "Revolutionize your content strategy with instant video creation. Generate engaging social media content, promotional videos, and marketing campaigns that capture attention. Turn your marketing copy into compelling visual narratives that drive engagement and conversions.",
+    title: "Revolutionizing Education",
+    description: "Transform traditional learning with innovative digital solutions. Create engaging educational content and interactive learning experiences that enhance student participation and academic success.",
     isReversed: true,
     delay: 50,
     layoutType: 'marketing' as const
