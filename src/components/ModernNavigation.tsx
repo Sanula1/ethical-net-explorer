@@ -5,17 +5,25 @@ import { LogIn, Menu, X, Home, DollarSign, FileText, ChevronDown } from "lucide-
 import { useState } from "react";
 const ModernNavigation = () => {
   const [isOpen, setIsOpen] = useState(false);
-  
-  const mainNavItems = [
-    { name: "Home", href: "/", icon: Home },
-    { name: "Pricing", href: "#pricing", icon: DollarSign }
-  ];
-
-  const legalItems = [
-    { name: "Privacy Policy", href: "/privacy" },
-    { name: "Terms & Conditions", href: "/terms" },
-    { name: "Refund Policy", href: "/refund" }
-  ];
+  const mainNavItems = [{
+    name: "Home",
+    href: "/",
+    icon: Home
+  }, {
+    name: "Pricing",
+    href: "#pricing",
+    icon: DollarSign
+  }];
+  const legalItems = [{
+    name: "Privacy Policy",
+    href: "/privacy"
+  }, {
+    name: "Terms & Conditions",
+    href: "/terms"
+  }, {
+    name: "Refund Policy",
+    href: "/refund"
+  }];
   return <>
       {/* Modern Glass Navigation */}
       <nav className="fixed top-2 left-1/2 transform -translate-x-1/2 z-50 w-[98%] max-w-7xl">
@@ -42,17 +50,12 @@ const ModernNavigation = () => {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-1">
-              {mainNavItems.map(item => (
-                <Button 
-                  key={item.name} 
-                  variant="ghost" 
-                  className="px-4 py-2 text-foreground/80 hover:text-foreground hover:bg-white/15 rounded-2xl transition-all duration-300 backdrop-blur-sm relative group" 
-                  onClick={() => item.href.startsWith('#') ? document.querySelector(item.href)?.scrollIntoView({ behavior: 'smooth' }) : window.location.href = item.href}
-                >
+              {mainNavItems.map(item => <Button key={item.name} variant="ghost" className="px-4 py-2 text-foreground/80 hover:text-foreground hover:bg-white/15 rounded-2xl transition-all duration-300 backdrop-blur-sm relative group" onClick={() => item.href.startsWith('#') ? document.querySelector(item.href)?.scrollIntoView({
+              behavior: 'smooth'
+            }) : window.location.href = item.href}>
                   <span className="relative z-10">{item.name}</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-primary-dark/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </Button>
-              ))}
+                </Button>)}
               
               {/* Legal & Support Dropdown */}
               <Popover>
@@ -65,31 +68,16 @@ const ModernNavigation = () => {
                 </PopoverTrigger>
                 <PopoverContent className="w-56 bg-background/95 backdrop-blur-xl border border-white/20">
                   <div className="space-y-2">
-                    {legalItems.map(item => (
-                      <Button
-                        key={item.name}
-                        variant="ghost"
-                        className="w-full justify-start px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary rounded-lg"
-                        onClick={() => window.location.href = item.href}
-                      >
+                    {legalItems.map(item => <Button key={item.name} variant="ghost" className="w-full justify-start px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary rounded-lg" onClick={() => window.location.href = item.href}>
                         {item.name}
-                      </Button>
-                    ))}
+                      </Button>)}
                   </div>
                 </PopoverContent>
               </Popover>
             </div>
 
             {/* Desktop CTA Buttons */}
-            <div className="hidden sm:flex items-center gap-3">
-              
-              <Button className="px-4 sm:px-6 py-2 bg-primary hover:bg-primary-dark text-primary-foreground rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden group text-sm">
-                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 transform translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-                <LogIn className="w-4 h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">Login</span>
-                <span className="sm:hidden">Log</span>
-              </Button>
-            </div>
+            
 
             {/* Mobile Menu Button */}
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -116,42 +104,30 @@ const ModernNavigation = () => {
                   <div className="flex-1 px-6 py-8">
                     <div className="space-y-4">
                       {/* Main Navigation Items */}
-                      {mainNavItems.map(item => (
-                        <Button 
-                          key={item.name} 
-                          variant="ghost" 
-                          className="w-full justify-start gap-3 px-4 py-3 text-left hover:bg-white/5 rounded-2xl transition-all duration-300" 
-                          onClick={() => {
-                            if (item.href.startsWith('#')) {
-                              document.querySelector(item.href)?.scrollIntoView({ behavior: 'smooth' });
-                            } else {
-                              window.location.href = item.href;
-                            }
-                            setIsOpen(false);
-                          }}
-                        >
+                      {mainNavItems.map(item => <Button key={item.name} variant="ghost" className="w-full justify-start gap-3 px-4 py-3 text-left hover:bg-white/5 rounded-2xl transition-all duration-300" onClick={() => {
+                      if (item.href.startsWith('#')) {
+                        document.querySelector(item.href)?.scrollIntoView({
+                          behavior: 'smooth'
+                        });
+                      } else {
+                        window.location.href = item.href;
+                      }
+                      setIsOpen(false);
+                    }}>
                           <item.icon className="w-5 h-5" />
                           {item.name}
-                        </Button>
-                      ))}
+                        </Button>)}
                       
                       {/* Legal & Support Section */}
                       <div className="pt-4 border-t border-white/10">
                         <div className="px-4 py-2 text-sm font-medium text-foreground/60">Legal & Support</div>
-                        {legalItems.map(item => (
-                          <Button
-                            key={item.name}
-                            variant="ghost"
-                            className="w-full justify-start gap-3 px-4 py-3 text-left hover:bg-white/5 rounded-2xl transition-all duration-300"
-                            onClick={() => {
-                              window.location.href = item.href;
-                              setIsOpen(false);
-                            }}
-                          >
+                        {legalItems.map(item => <Button key={item.name} variant="ghost" className="w-full justify-start gap-3 px-4 py-3 text-left hover:bg-white/5 rounded-2xl transition-all duration-300" onClick={() => {
+                        window.location.href = item.href;
+                        setIsOpen(false);
+                      }}>
                             <FileText className="w-5 h-5" />
                             {item.name}
-                          </Button>
-                        ))}
+                          </Button>)}
                       </div>
                     </div>
                   </div>
