@@ -76,9 +76,7 @@ Learning</span>
             <iframe src="https://www.youtube.com/embed/as6q5DylTyg?si=1LFjUkYrd7Yq-ii4" title="YouTube video player" className="w-full h-full" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
             
             {/* Video Overlay Info */}
-            <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-white text-sm font-medium">
-              How to Make Whiteboard Animations
-            </div>
+            <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 text-white text-sm font-medium">Suraksha LMS</div>
             
             {/* YouTube Branding */}
             <div className="absolute bottom-4 right-4 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
