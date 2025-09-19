@@ -241,12 +241,7 @@ const AnimatedSection = ({
               <p>{description}</p>
             </div>
 
-            <Button size="lg" className={`bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 group ${isVisible ? 'animate-fade-in' : 'opacity-0'}`} style={{
-            animationDelay: '1000ms'
-          }}>
-              Generate video from text
-              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform duration-200" />
-            </Button>
+            
           </div>
         </div>
       </div>

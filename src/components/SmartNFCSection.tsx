@@ -171,12 +171,10 @@ const SmartNFCSection = () => {
                 </p>
                 
                 <div className="grid sm:grid-cols-2 gap-4">
-                  {currentCardData.features.map((feature, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
+                  {currentCardData.features.map((feature, index) => <div key={index} className="flex items-center gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
                       <div className={`w-3 h-3 rounded-full bg-${feature.icon}-500`}></div>
                       <span className="text-sm font-medium">{feature.text}</span>
-                    </div>
-                  ))}
+                    </div>)}
                 </div>
                 
                 <div className="p-4 rounded-lg bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500">
@@ -189,9 +187,7 @@ const SmartNFCSection = () => {
             </div>
             
             <div className="pt-4">
-              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl">
-                Learn More About {currentCardData.id.toUpperCase()}
-              </Button>
+              
             </div>
           </div>
         </div>
